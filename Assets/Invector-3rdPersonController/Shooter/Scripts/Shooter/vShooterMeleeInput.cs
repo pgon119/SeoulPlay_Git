@@ -24,6 +24,8 @@ namespace Invector.vCharacterController
 
         [HideInInspector] public vShooterManager shooterManager;
         public vArmAimAlign leftArmAim, rightArmAim;
+        [Tooltip("Vertical camera-space offset applied only when aiming without the aim input.")]
+        public float hipfireAimPointVerticalOffset = 0.15f;
 
         public virtual bool isAimingByInput { get; set; }
         public virtual bool isReloading { get; set; }
@@ -288,12 +290,19 @@ namespace Invector.vCharacterController
         {
             get
             {
-                if (!shooterManager.hipfireShot && _aimTiming > 0 || (isReloading && !shooterManager.keepAimingWhenReload) || isEquipping || lockShooterInput || cc.customAction)
+                if ((isReloading && !shooterManager.keepAimingWhenReload) || isEquipping || lockShooterInput || cc.customAction)
                 {
                     _aimTiming = 0;
                     return false;
                 }
-                return shooterManager.hipfireShot && (_aimTiming > 0 || (shotInput.GetButton() && shooterManager.CurrentWeapon != null) || (!isAimingByInput && shootCountA > 0));
+
+                var weapon = shooterManager.CurrentWeapon;
+                var hasWeapon = weapon != null;
+                var wantsToShootWithoutAim = hasWeapon && shotInput.GetButton();
+                var hasPendingHipfireShot = !isAimingByInput && shootCountA > 0;
+                var keepHipfireAim = _aimTiming > 0;
+
+                return keepHipfireAim || wantsToShootWithoutAim || hasPendingHipfireShot;
             }
         }
 
@@ -657,7 +666,7 @@ namespace Invector.vCharacterController
                 return;
             }
 
-            if (shooterManager.hipfireShot && !LockHipFireAiming)
+            if (!LockHipFireAiming)
             {
                 // countdown for the hipfire to reset the aim back to idle
                 if (_aimTiming > 0 && CanRotateAimArm())
@@ -784,6 +793,7 @@ namespace Invector.vCharacterController
                     CurrentActiveWeapon.powerCharge = 0;
                 }
 
+                allowAttack = false;
                 shootCountA = 0;
             }
         }
@@ -799,7 +809,7 @@ namespace Invector.vCharacterController
             {
                 if (shooterManager.WeaponHasLoadedAmmo() && weapon.powerCharge < 1 && weaponInput)
                 {
-                    if (shooterManager.hipfireShot)
+                    if (!isAimingByInput)
                     {
                         _aimTiming = shooterManager.HipfireAimTime;
                     }
@@ -810,7 +820,7 @@ namespace Invector.vCharacterController
                 else if ((weapon.powerCharge >= 1 && weapon.autoShotOnFinishCharge && weaponInput) ||
                     (!weaponInput && IsAiming && weapon.powerCharge > 0f))
                 {
-                    if (shooterManager.hipfireShot)
+                    if (!isAimingByInput)
                     {
                         _aimTiming = shooterManager.HipfireAimTime;
                     }
@@ -821,7 +831,7 @@ namespace Invector.vCharacterController
             }
             else if (weapon.automaticWeapon && weaponInput)
             {
-                if (shooterManager.hipfireShot && !isAimingByInput)
+                if (!isAimingByInput)
                 {
                     _aimTiming = shooterManager.HipfireAimTime;
                 }
@@ -829,9 +839,11 @@ namespace Invector.vCharacterController
             }
             else if (weaponInput)
             {
-                if (shooterManager.hipfireShot && !isAimingByInput)
+                if (!isAimingByInput)
                 {
                     _aimTiming = shooterManager.HipfireAimTime;
+                    shootCountA = 1;
+                    return;
                 }
 
                 if (allowAttack == false)
@@ -1279,6 +1291,11 @@ namespace Invector.vCharacterController
 
                     }
                 }
+            }
+
+            if (!isAimingByInput)
+            {
+                desiredAimPoint += camT.up * hipfireAimPointVerticalOffset;
             }
 
             var localAimPoint = aimAngleReference.transform.InverseTransformPoint(desiredAimPoint);
@@ -1890,20 +1907,18 @@ namespace Invector.vCharacterController
                 controlAimCanvas.SetAimToCenter(true);
 
             }
+            else if (!isAimingByInput)
+            {
+                SetAimHudToPoint(_aimPoint);
+            }
             else if (IsAiming && aimConditions)
             {
-                var aimDistance = Vector3.Distance(aimAngleReference.transform.position, _aimPoint);
-                var validAim = (aimDistance > shooterManager.maxAimHitPointIndicator || Vector3.Distance(AimPosition, DesiredAimPosition) < 0.1f) && aimConditions;
-
-                if (aimDistance > shooterManager.maxAimHitPointIndicator || Vector3.Distance(AimPosition, DesiredAimPosition) < 0.1f)
-                    controlAimCanvas.SetAimToCenter(true);
-                else
-                    controlAimCanvas.SetWordPosition(_aimPoint, validAim);
+                SetAimHudToPoint(_aimPoint);
 
             }
             else
             {
-                controlAimCanvas.SetAimToCenter(aimConditions);
+                SetAimHudToPoint(_aimPoint);
             }
 
             if ((controlAimCanvas.scopeBackgroundCamera && CurrentActiveWeapon.scopeTarget))
@@ -1930,6 +1945,14 @@ namespace Invector.vCharacterController
                 else scopeDirectionWeight = 1f;
             }
 
+        }
+
+        protected virtual void SetAimHudToPoint(Vector3 aimPoint)
+        {
+            var useSmooth = controlAimCanvas.useAimCorrectionSmooth;
+            controlAimCanvas.useAimCorrectionSmooth = false;
+            controlAimCanvas.SetWordPosition(aimPoint, aimPoint, true);
+            controlAimCanvas.useAimCorrectionSmooth = useSmooth;
         }
 
         #endregion
