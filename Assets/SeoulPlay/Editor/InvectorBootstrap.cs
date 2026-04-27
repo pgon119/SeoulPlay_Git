@@ -52,6 +52,11 @@ namespace SeoulPlay.Editor
 
         private static void CreateTestScene()
         {
+            CreateTestScene("TPS_Invector_Test", ScenePath);
+        }
+
+        private static void CreateTestScene(string sceneName, string scenePath)
+        {
             DeleteIfExists("Assets/Scenes/TPS_Test_Ground.mat");
             for (var i = 0; i < 5; i++)
             {
@@ -59,7 +64,7 @@ namespace SeoulPlay.Editor
             }
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            scene.name = "TPS_Invector_Test";
+            scene.name = sceneName;
 
             CreateLighting();
             CreateGround();
@@ -67,7 +72,7 @@ namespace SeoulPlay.Editor
             CreatePlayer();
             EnsureEventSystem();
 
-            EditorSceneManager.SaveScene(scene, ScenePath);
+            EditorSceneManager.SaveScene(scene, scenePath);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
         }
