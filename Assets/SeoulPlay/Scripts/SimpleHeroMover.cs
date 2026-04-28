@@ -1,4 +1,5 @@
 using UnityEngine;
+using Cinemachine;
 
 namespace SeoulPlay
 {
@@ -23,6 +24,8 @@ namespace SeoulPlay
         [SerializeField] private Animator animator;
         [SerializeField] private Transform modelRoot;
         [SerializeField] private Camera followCamera;
+        [SerializeField] private Transform cameraTarget;
+        [SerializeField] private Transform rollCameraTarget;
 
         [Header("Movement")]
         [SerializeField, Min(0f)] private float walkSpeed = 2.4f;
@@ -33,22 +36,43 @@ namespace SeoulPlay
         [SerializeField] private float gravity = -20f;
 
         [Header("Camera")]
-        [SerializeField, Min(0f)] private float cameraDistance = 5f;
-        [SerializeField, Min(0f)] private float cameraHeight = 1.45f;
+        [SerializeField, Min(0f)] private float cameraDistance = 6f;
+        [SerializeField, Min(0f)] private float cameraHeight = 1.65f;
         [SerializeField] private float cameraPitch = 15f;
         [SerializeField, Min(0f)] private float cameraPitchSpeed = 120f;
         [SerializeField] private float minCameraPitch = -25f;
         [SerializeField] private float maxCameraPitch = 65f;
         [SerializeField] private bool invertVerticalLook;
-        [SerializeField, Min(0f)] private float cameraSmoothTime = 0.08f;
-        [SerializeField, Min(0f)] private float rollCameraSmoothTime = 0.02f;
+        [SerializeField] private bool useRightStickForCamera = true;
+        [SerializeField] private bool useSceneCameraStartPose = true;
+        [SerializeField, Min(0f)] private float cameraSmoothTime = 0.02f;
+        [SerializeField, Min(0f)] private float rollCameraSmoothTime = 0.12f;
+        [SerializeField, Min(0f)] private float cameraTargetSmoothTime = 0.04f;
+        [SerializeField, Min(0f)] private float rollCameraTargetSmoothTime = 0.14f;
+
+        [Header("Cinemachine")]
+        [SerializeField] private bool useCinemachineCamera = true;
+        [SerializeField] private CinemachineVirtualCamera gameplayVirtualCamera;
+        [SerializeField] private CinemachineVirtualCamera rollVirtualCamera;
+        [SerializeField] private int gameplayCameraPriority = 20;
+        [SerializeField] private int inactiveCameraPriority = 5;
+        [SerializeField] private int rollCameraPriority = 30;
+        [SerializeField] private float cinemachineCameraDistance = 6f;
+        [SerializeField] private float cinemachineCameraHeight = 1.65f;
+        [SerializeField] private Vector3 cinemachineFollowOffset = new Vector3(0f, 1.65f, -6f);
+        [SerializeField, Range(0f, 1f)] private float rollCameraFollowStartNormalized = 0f;
+        [SerializeField, Min(0f)] private float rollCameraGroundHeight = 0.15f;
+        [SerializeField] private bool lockRollCameraYaw = true;
+        [SerializeField, Min(0f)] private float gameplayCameraDamping = 0.25f;
+        [SerializeField, Min(0f)] private float rollCameraDamping = 0.1f;
 
         [Header("Roll")]
         [SerializeField, Min(0f)] private float rollSpeed = 6.8f;
         [SerializeField, Min(0f)] private float rollDuration = 0.72f;
         [SerializeField, Min(0f)] private float rollCooldown = 0.2f;
-        [SerializeField] private bool useRollRootMotion = true;
+        [SerializeField] private bool useRollRootMotion;
         [SerializeField] private bool useModelOffsetRootMotion = true;
+        [SerializeField] private bool useDirectionalRollAnimations;
         [SerializeField, Min(0f)] private float rollRootMotionScale = 1f;
         [SerializeField, Min(0f)] private float rollEndEarlyTime = 0.1f;
         [SerializeField, Min(0f)] private float rollExitBlendTime = 0.12f;
@@ -56,20 +80,38 @@ namespace SeoulPlay
 
         [Header("Fire")]
         [SerializeField, Min(0f)] private float upperBodyFireDuration = 0.45f;
+        [SerializeField] private bool driveAnimatorAimFromAimInput;
 
         private CharacterController characterController;
         private float verticalVelocity;
         private float cameraYaw;
+        private float lockedRollCameraYaw;
+        private float lockedRollCameraPitch;
         private float rollTimer;
+        private float rollElapsedTime;
+        private float activeRollDuration;
         private float rollCooldownTimer;
         private float rollRecoveryTimer;
         private float upperBodyFireTimer;
         private int upperBodyFireLayerIndex = -1;
         private bool wasFirePressed;
         private bool isRolling;
+        private bool hasSmoothedCameraTargetPosition;
+        private bool hasSceneCameraStartPose;
+        private bool cinemachineReady;
+        private bool wasCinemachineRolling;
+        private float sceneCameraStartPitch;
+        private Quaternion sceneCameraStartRotation;
+        private Quaternion sceneCameraLocalRotation;
         private Vector3 cameraVelocity;
+        private Vector3 cameraTargetVelocity;
+        private Vector3 smoothedCameraTargetPosition;
         private Vector3 rollDirection;
         private Vector3 rollFacingDirection;
+        private Vector3 postRollFacingDirection;
+        private Vector3 lockedRollCameraTargetPosition;
+        private Vector3 rollCameraTargetStartPosition;
+        private Vector3 rollCameraTargetEndPosition;
         private Vector2 lastLocomotionInput;
         private int[] animatorParameterHashes = System.Array.Empty<int>();
 
@@ -92,9 +134,13 @@ namespace SeoulPlay
                 modelRoot = animator.transform;
             }
 
-            ResetModelRootTransform();
             cameraYaw = transform.eulerAngles.y;
             cameraPitch = Mathf.Clamp(cameraPitch, minCameraPitch, maxCameraPitch);
+            EnsureCameraTarget();
+            CaptureSceneCameraStartPose();
+            EnsureCinemachineSetup();
+            ResetCameraState();
+            ResetModelRootTransform();
             CacheAnimatorParameters();
             CacheAnimatorLayers();
         }
@@ -170,8 +216,13 @@ namespace SeoulPlay
 
         private void UpdateCameraInput()
         {
+            if (isRolling)
+            {
+                return;
+            }
+
             var gamepadTurn = Input.GetAxis("RightAnalogHorizontal");
-            if (Mathf.Abs(gamepadTurn) > gamepadDeadZone)
+            if (useRightStickForCamera && Mathf.Abs(gamepadTurn) > gamepadDeadZone)
             {
                 cameraYaw += gamepadTurn * gamepadTurnSpeed * Time.deltaTime;
             }
@@ -181,7 +232,9 @@ namespace SeoulPlay
             }
 
             var gamepadPitch = Input.GetAxis("RightAnalogVertical");
-            var pitchInput = Mathf.Abs(gamepadPitch) > gamepadDeadZone ? gamepadPitch : Input.GetAxis("Mouse Y");
+            var pitchInput = useRightStickForCamera && Mathf.Abs(gamepadPitch) > gamepadDeadZone
+                ? gamepadPitch
+                : Input.GetAxis("Mouse Y");
             var pitchDirection = invertVerticalLook ? 1f : -1f;
             cameraPitch += pitchInput * pitchDirection * cameraPitchSpeed * Time.deltaTime;
             cameraPitch = Mathf.Clamp(cameraPitch, minCameraPitch, maxCameraPitch);
@@ -225,9 +278,37 @@ namespace SeoulPlay
                 turnSpeed * Time.deltaTime);
         }
 
+        public void RotateCameraYawToward(Vector3 direction, float degreesPerSecond)
+        {
+            direction.y = 0f;
+            if (direction.sqrMagnitude <= 0.001f)
+            {
+                return;
+            }
+
+            var targetYaw = Quaternion.LookRotation(direction.normalized, Vector3.up).eulerAngles.y;
+            cameraYaw = Mathf.MoveTowardsAngle(
+                cameraYaw,
+                targetYaw,
+                degreesPerSecond * Time.deltaTime);
+        }
+
+        private void SnapToward(Vector3 direction)
+        {
+            direction.y = 0f;
+            if (direction.sqrMagnitude <= 0.001f)
+            {
+                return;
+            }
+
+            transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+        }
+
         private bool IsAimPressed()
         {
-            return Input.GetMouseButton(1) || Input.GetButton("LB") || Input.GetAxis("LT") > 0.2f;
+            return Input.GetMouseButton(1)
+                || Input.GetButton("LB")
+                || Input.GetAxis("LT") > 0.2f;
         }
 
         private bool IsRollPressed()
@@ -239,15 +320,28 @@ namespace SeoulPlay
         {
             var rollInput = GetCardinalRollInput(ResolveRollInput(input));
             rollDirection = GetCameraRelativeMove(rollInput).normalized;
-            rollFacingDirection = useRollRootMotion
+            rollFacingDirection = rollDirection;
+            postRollFacingDirection = rollInput.y < -0.1f
                 ? Quaternion.Euler(0f, cameraYaw, 0f) * Vector3.forward
-                : rollDirection;
-            rollTimer = Mathf.Max(0.05f, rollDuration - rollEndEarlyTime);
+                : rollFacingDirection;
+            SnapToward(rollFacingDirection);
+            activeRollDuration = Mathf.Max(0.05f, rollDuration - rollEndEarlyTime);
+            rollTimer = activeRollDuration;
+            rollElapsedTime = 0f;
+            lockedRollCameraYaw = cameraYaw;
+            lockedRollCameraPitch = cameraPitch;
+            lockedRollCameraTargetPosition = cameraTarget != null
+                ? cameraTarget.position
+                : transform.position + Vector3.up * cameraHeight;
+            rollCameraTargetStartPosition = lockedRollCameraTargetPosition;
+            rollCameraTargetEndPosition = rollCameraTargetStartPosition + rollDirection * rollSpeed * activeRollDuration;
+            rollCameraTargetEndPosition.y = rollCameraTargetStartPosition.y;
             rollCooldownTimer = rollCooldown;
             rollRecoveryTimer = 0f;
             isRolling = true;
             verticalVelocity = 0f;
             cameraVelocity = Vector3.zero;
+            cameraTargetVelocity = Vector3.zero;
 
             SetAnimatorBool(RollingHash, true);
             ResetAnimatorTrigger(FireHash);
@@ -300,8 +394,13 @@ namespace SeoulPlay
             }
         }
 
-        private static int GetRollStateHash(Vector2 input)
+        private int GetRollStateHash(Vector2 input)
         {
+            if (!useDirectionalRollAnimations)
+            {
+                return RollForwardStateHash;
+            }
+
             if (input.y > 0.1f)
             {
                 return RollForwardStateHash;
@@ -317,6 +416,7 @@ namespace SeoulPlay
 
         private void UpdateRoll()
         {
+            rollElapsedTime += Time.deltaTime;
             rollTimer -= Time.deltaTime;
             RotateToward(rollFacingDirection);
             if (!useRollRootMotion)
@@ -331,9 +431,11 @@ namespace SeoulPlay
 
             isRolling = false;
             SetAnimatorBool(RollingHash, false);
+            SnapToward(postRollFacingDirection);
             CrossFadeToLocomotion();
             SetAnimatorRootMotion(false);
             cameraVelocity = Vector3.zero;
+            cameraTargetVelocity = Vector3.zero;
             rollRecoveryTimer = rollRecoveryDuration;
         }
 
@@ -365,7 +467,7 @@ namespace SeoulPlay
             SetAnimatorFloat(MoveZHash, isRolling ? 0f : input.y, 0.1f);
             SetAnimatorFloat(SpeedHash, isRunning ? speed01 * 2f : speed01, 0.1f);
             SetAnimatorBool(GroundedHash, characterController.isGrounded);
-            SetAnimatorBool(AimHash, aimPressed);
+            SetAnimatorBool(AimHash, driveAnimatorAimFromAimInput && aimPressed);
 
             var firePressed = Input.GetMouseButton(0) || Input.GetButton("RB") || Input.GetAxis("RT") > 0.2f;
             if (firePressed && !wasFirePressed && !isRolling)
@@ -376,7 +478,7 @@ namespace SeoulPlay
             }
             wasFirePressed = firePressed;
 
-            UpdateUpperBodyFireLayer();
+            UpdateUpperBodyFireLayer(firePressed);
 
             if (!isRolling && input.sqrMagnitude > 0.001f)
             {
@@ -391,8 +493,23 @@ namespace SeoulPlay
                 return;
             }
 
+            EnsureCameraTarget();
+            UpdateCameraTarget();
+
+            if (hasSceneCameraStartPose)
+            {
+                UpdateScenePoseCamera();
+                return;
+            }
+
+            if (useCinemachineCamera && cinemachineReady)
+            {
+                UpdateCinemachineCamera();
+                return;
+            }
+
             var yawRotation = Quaternion.Euler(cameraPitch, cameraYaw, 0f);
-            var lookTarget = transform.position + Vector3.up * cameraHeight;
+            var lookTarget = cameraTarget.position;
             var targetPosition = lookTarget - yawRotation * Vector3.forward * cameraDistance;
             var activeSmoothTime = isRolling || rollRecoveryTimer > 0f
                 ? rollCameraSmoothTime
@@ -406,6 +523,389 @@ namespace SeoulPlay
             followCamera.transform.SetPositionAndRotation(
                 smoothedPosition,
                 Quaternion.LookRotation(lookTarget - smoothedPosition, Vector3.up));
+        }
+
+        private void UpdateScenePoseCamera()
+        {
+            var yawRotation = Quaternion.Euler(0f, cameraYaw, 0f);
+            var pitchDelta = Quaternion.Euler(cameraPitch - sceneCameraStartPitch, 0f, 0f);
+            var targetPosition = cameraTarget.position + yawRotation * pitchDelta * cinemachineFollowOffset;
+            var targetRotation = yawRotation * pitchDelta * sceneCameraLocalRotation;
+            var activeSmoothTime = isRolling || rollRecoveryTimer > 0f
+                ? rollCameraSmoothTime
+                : IsCameraLookInputActive() ? 0f : cameraSmoothTime;
+            var smoothedPosition = activeSmoothTime <= 0.001f
+                ? targetPosition
+                : Vector3.SmoothDamp(
+                    followCamera.transform.position,
+                    targetPosition,
+                    ref cameraVelocity,
+                    activeSmoothTime);
+
+            followCamera.transform.SetPositionAndRotation(smoothedPosition, targetRotation);
+        }
+
+        private bool IsCameraLookInputActive()
+        {
+            var stickInput = new Vector2(
+                Input.GetAxisRaw("RightAnalogHorizontal"),
+                Input.GetAxisRaw("RightAnalogVertical"));
+            return useRightStickForCamera && stickInput.magnitude > gamepadDeadZone
+                || Mathf.Abs(Input.GetAxis("Mouse X")) > 0.001f
+                || Mathf.Abs(Input.GetAxis("Mouse Y")) > 0.001f;
+        }
+
+        private void EnsureCameraTarget()
+        {
+            if (cameraTarget != null)
+            {
+                return;
+            }
+
+            cameraTarget = GetOrCreateChildTransform("CameraTarget", Vector3.up * cameraHeight);
+            cameraTarget.rotation = Quaternion.Euler(0f, cameraYaw, 0f);
+            smoothedCameraTargetPosition = cameraTarget.position;
+            hasSmoothedCameraTargetPosition = true;
+        }
+
+        private void UpdateCameraTarget()
+        {
+            if (cameraTarget == null)
+            {
+                return;
+            }
+
+            var desiredPosition = transform.position + Vector3.up * cameraHeight;
+            var activeSmoothTime = isRolling || rollRecoveryTimer > 0f
+                ? rollCameraTargetSmoothTime
+                : cameraTargetSmoothTime;
+
+            if (!hasSmoothedCameraTargetPosition)
+            {
+                smoothedCameraTargetPosition = desiredPosition;
+                hasSmoothedCameraTargetPosition = true;
+            }
+
+            smoothedCameraTargetPosition = Vector3.SmoothDamp(
+                smoothedCameraTargetPosition,
+                desiredPosition,
+                ref cameraTargetVelocity,
+                activeSmoothTime);
+            cameraTarget.position = smoothedCameraTargetPosition;
+            cameraTarget.rotation = Quaternion.Euler(0f, cameraYaw, 0f);
+        }
+
+        private void CaptureSceneCameraStartPose()
+        {
+            if (!useSceneCameraStartPose || followCamera == null || cameraTarget == null)
+            {
+                return;
+            }
+
+            sceneCameraStartRotation = followCamera.transform.rotation;
+
+            var cameraForward = sceneCameraStartRotation * Vector3.forward;
+            var flatForward = Vector3.ProjectOnPlane(cameraForward, Vector3.up);
+            if (flatForward.sqrMagnitude > 0.001f)
+            {
+                cameraYaw = Quaternion.LookRotation(flatForward.normalized, Vector3.up).eulerAngles.y;
+            }
+
+            cameraPitch = Mathf.Clamp(NormalizePitch(sceneCameraStartRotation.eulerAngles.x), minCameraPitch, maxCameraPitch);
+            sceneCameraStartPitch = cameraPitch;
+
+            var yawRotation = Quaternion.Euler(0f, cameraYaw, 0f);
+            cinemachineFollowOffset = Quaternion.Inverse(yawRotation) * (followCamera.transform.position - cameraTarget.position);
+            sceneCameraLocalRotation = Quaternion.Inverse(yawRotation) * sceneCameraStartRotation;
+            cinemachineCameraDistance = Mathf.Max(0.01f, -cinemachineFollowOffset.z);
+            cinemachineCameraHeight = cinemachineFollowOffset.y;
+            cameraDistance = cinemachineCameraDistance;
+            hasSceneCameraStartPose = true;
+        }
+
+        private static float NormalizePitch(float pitch)
+        {
+            return pitch > 180f ? pitch - 360f : pitch;
+        }
+
+        private void EnsureCinemachineSetup()
+        {
+            if (useSceneCameraStartPose && followCamera != null)
+            {
+                var existingBrain = followCamera.GetComponent<CinemachineBrain>();
+                if (existingBrain != null)
+                {
+                    existingBrain.enabled = false;
+                }
+
+                cinemachineReady = false;
+                return;
+            }
+
+            if (!useCinemachineCamera || followCamera == null)
+            {
+                return;
+            }
+
+            var brain = followCamera.GetComponent<CinemachineBrain>();
+            if (brain == null)
+            {
+                brain = followCamera.gameObject.AddComponent<CinemachineBrain>();
+            }
+            brain.m_DefaultBlend.m_Style = CinemachineBlendDefinition.Style.Cut;
+            brain.m_DefaultBlend.m_Time = 0f;
+
+            if (rollCameraTarget == null)
+            {
+                rollCameraTarget = GetOrCreateChildTransform("RollCameraTarget", Vector3.up * rollCameraGroundHeight);
+            }
+
+            gameplayVirtualCamera = EnsureVirtualCamera(
+                gameplayVirtualCamera,
+                "CM Gameplay Camera",
+                cameraTarget,
+                null,
+                gameplayCameraPriority,
+                gameplayCameraDamping);
+
+            rollVirtualCamera = EnsureVirtualCamera(
+                rollVirtualCamera,
+                "CM Roll Camera",
+                rollCameraTarget,
+                null,
+                inactiveCameraPriority,
+                rollCameraDamping);
+
+            cinemachineReady = gameplayVirtualCamera != null && rollVirtualCamera != null;
+            UpdateCinemachinePriorities(false);
+        }
+
+        private CinemachineVirtualCamera EnsureVirtualCamera(
+            CinemachineVirtualCamera virtualCamera,
+            string cameraName,
+            Transform followTarget,
+            Transform lookAtTarget,
+            int priority,
+            float damping)
+        {
+            if (virtualCamera == null)
+            {
+                var cameraObject = GetOrCreateChildTransform(cameraName, Vector3.zero).gameObject;
+                virtualCamera = cameraObject.GetComponent<CinemachineVirtualCamera>();
+                if (virtualCamera == null)
+                {
+                    virtualCamera = cameraObject.AddComponent<CinemachineVirtualCamera>();
+                }
+            }
+
+            virtualCamera.Priority = priority;
+            virtualCamera.Follow = followTarget;
+            virtualCamera.LookAt = lookAtTarget;
+            virtualCamera.m_Lens.FieldOfView = followCamera.fieldOfView;
+            virtualCamera.transform.rotation = Quaternion.Euler(cameraPitch, cameraYaw, 0f);
+            virtualCamera.PreviousStateIsValid = false;
+
+            var transposer = virtualCamera.GetCinemachineComponent<CinemachineTransposer>();
+            if (transposer == null)
+            {
+                transposer = virtualCamera.AddCinemachineComponent<CinemachineTransposer>();
+            }
+
+            transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
+            transposer.m_FollowOffset = cinemachineFollowOffset;
+            transposer.m_XDamping = damping;
+            transposer.m_YDamping = damping;
+            transposer.m_ZDamping = damping;
+
+            if (lookAtTarget != null)
+            {
+                var composer = virtualCamera.GetCinemachineComponent<CinemachineComposer>();
+                if (composer == null)
+                {
+                    composer = virtualCamera.AddCinemachineComponent<CinemachineComposer>();
+                }
+
+                composer.m_TrackedObjectOffset = Vector3.zero;
+                composer.m_HorizontalDamping = damping;
+                composer.m_VerticalDamping = damping;
+            }
+            else
+            {
+                var composer = virtualCamera.GetCinemachineComponent<CinemachineComposer>();
+                if (composer != null)
+                {
+                    if (Application.isPlaying)
+                    {
+                        Destroy(composer);
+                    }
+                    else
+                    {
+                        DestroyImmediate(composer);
+                    }
+                }
+            }
+
+            return virtualCamera;
+        }
+
+        private void ResetCameraState()
+        {
+            if (cameraTarget != null)
+            {
+                var targetPosition = transform.position + Vector3.up * cameraHeight;
+                cameraTarget.position = targetPosition;
+                cameraTarget.rotation = Quaternion.Euler(0f, cameraYaw, 0f);
+                smoothedCameraTargetPosition = targetPosition;
+                hasSmoothedCameraTargetPosition = true;
+            }
+
+            if (rollCameraTarget != null)
+            {
+                rollCameraTarget.position = cameraTarget != null
+                    ? cameraTarget.position
+                    : transform.position + Vector3.up * rollCameraGroundHeight;
+                rollCameraTarget.rotation = Quaternion.Euler(0f, cameraYaw, 0f);
+            }
+
+            var cameraRotation = hasSceneCameraStartPose
+                ? sceneCameraStartRotation
+                : Quaternion.Euler(cameraPitch, cameraYaw, 0f);
+            if (gameplayVirtualCamera != null)
+            {
+                gameplayVirtualCamera.transform.rotation = cameraRotation;
+                gameplayVirtualCamera.PreviousStateIsValid = false;
+            }
+
+            if (rollVirtualCamera != null)
+            {
+                rollVirtualCamera.transform.rotation = cameraRotation;
+                rollVirtualCamera.PreviousStateIsValid = false;
+            }
+
+            if (followCamera != null)
+            {
+                var lookTarget = cameraTarget != null
+                    ? cameraTarget.position
+                    : transform.position + Vector3.up * cameraHeight;
+                var pitchDelta = Quaternion.Euler(cameraPitch - sceneCameraStartPitch, 0f, 0f);
+                var cameraPosition = hasSceneCameraStartPose
+                    ? lookTarget + Quaternion.Euler(0f, cameraYaw, 0f) * pitchDelta * cinemachineFollowOffset
+                    : lookTarget - cameraRotation * Vector3.forward * cameraDistance;
+                followCamera.transform.SetPositionAndRotation(
+                    cameraPosition,
+                    hasSceneCameraStartPose
+                        ? Quaternion.Euler(0f, cameraYaw, 0f) * pitchDelta * sceneCameraLocalRotation
+                        : Quaternion.LookRotation(lookTarget - cameraPosition, Vector3.up));
+            }
+        }
+
+        private Transform GetOrCreateChildTransform(string childName, Vector3 localPosition)
+        {
+            var child = transform.Find(childName);
+            if (child == null)
+            {
+                child = new GameObject(childName).transform;
+                child.SetParent(transform, false);
+            }
+
+            child.localPosition = localPosition;
+            child.localRotation = Quaternion.identity;
+            child.localScale = Vector3.one;
+            return child;
+        }
+
+        private void UpdateCinemachineCamera()
+        {
+            var rollCameraActive = isRolling && IsRollCameraFollowActive();
+            UpdateCinemachinePriorities(rollCameraActive);
+            UpdateRollCameraTarget();
+
+            if (gameplayVirtualCamera != null)
+            {
+                gameplayVirtualCamera.transform.rotation = Quaternion.Euler(cameraPitch, cameraYaw, 0f);
+            }
+
+            if (rollVirtualCamera != null)
+            {
+                rollVirtualCamera.transform.rotation = Quaternion.Euler(GetActiveCameraPitch(), GetActiveCameraYaw(), 0f);
+                if (isRolling)
+                {
+                    rollVirtualCamera.PreviousStateIsValid = false;
+                }
+            }
+        }
+
+        private void UpdateCinemachinePriorities(bool rolling)
+        {
+            if (wasCinemachineRolling == rolling && Application.isPlaying)
+            {
+                return;
+            }
+
+            wasCinemachineRolling = rolling;
+
+            if (gameplayVirtualCamera != null)
+            {
+                gameplayVirtualCamera.Priority = rolling ? inactiveCameraPriority : gameplayCameraPriority;
+            }
+
+            if (rollVirtualCamera != null)
+            {
+                rollVirtualCamera.Priority = rolling ? rollCameraPriority : inactiveCameraPriority;
+            }
+        }
+
+        private void UpdateRollCameraTarget()
+        {
+            if (rollCameraTarget == null)
+            {
+                return;
+            }
+
+            var activeYaw = GetActiveCameraYaw();
+            var followActive = isRolling && IsRollCameraFollowActive();
+            if (followActive)
+            {
+                rollCameraTarget.position = Vector3.Lerp(
+                    rollCameraTargetStartPosition,
+                    rollCameraTargetEndPosition,
+                    GetRollCameraProgress01());
+            }
+            else
+            {
+                rollCameraTarget.position = cameraTarget.position;
+            }
+            rollCameraTarget.rotation = Quaternion.Euler(0f, activeYaw, 0f);
+        }
+
+        private bool IsRollCameraFollowActive()
+        {
+            if (!isRolling)
+            {
+                return false;
+            }
+
+            var duration = activeRollDuration > 0f ? activeRollDuration : Mathf.Max(0.05f, rollDuration - rollEndEarlyTime);
+            return rollElapsedTime >= duration * rollCameraFollowStartNormalized;
+        }
+
+        private float GetRollCameraProgress01()
+        {
+            var duration = activeRollDuration > 0f ? activeRollDuration : Mathf.Max(0.05f, rollDuration - rollEndEarlyTime);
+            var startTime = duration * rollCameraFollowStartNormalized;
+            var remainingDuration = Mathf.Max(0.001f, duration - startTime);
+            var progress = Mathf.Clamp01((rollElapsedTime - startTime) / remainingDuration);
+            return progress * progress * (3f - 2f * progress);
+        }
+
+        private float GetActiveCameraYaw()
+        {
+            return isRolling && lockRollCameraYaw ? lockedRollCameraYaw : cameraYaw;
+        }
+
+        private float GetActiveCameraPitch()
+        {
+            return isRolling && lockRollCameraYaw ? lockedRollCameraPitch : cameraPitch;
         }
 
         private void CacheAnimatorParameters()
@@ -435,7 +935,7 @@ namespace SeoulPlay
             SetAnimatorRootMotion(false);
         }
 
-        private void UpdateUpperBodyFireLayer()
+        private void UpdateUpperBodyFireLayer(bool fireHeld)
         {
             if (upperBodyFireLayerIndex < 0)
             {
@@ -446,6 +946,13 @@ namespace SeoulPlay
             {
                 upperBodyFireTimer = 0f;
                 SetUpperBodyFireLayerWeight(0f);
+                return;
+            }
+
+            if (fireHeld)
+            {
+                upperBodyFireTimer = upperBodyFireDuration;
+                SetUpperBodyFireLayerWeight(1f);
                 return;
             }
 
@@ -577,27 +1084,4 @@ namespace SeoulPlay
         }
     }
 
-    [RequireComponent(typeof(Animator))]
-    public sealed class AnimatorRootMotionRelay : MonoBehaviour
-    {
-        [SerializeField] private SimpleHeroMover mover;
-        private Animator animator;
-
-        private void Awake()
-        {
-            animator = GetComponent<Animator>();
-            if (mover == null)
-            {
-                mover = GetComponentInParent<SimpleHeroMover>();
-            }
-        }
-
-        private void OnAnimatorMove()
-        {
-            if (animator != null && mover != null)
-            {
-                mover.ApplyAnimatorRootMotion(animator.deltaPosition, animator.deltaRotation);
-            }
-        }
-    }
 }

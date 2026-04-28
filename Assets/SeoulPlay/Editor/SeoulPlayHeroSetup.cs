@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Cinemachine;
 using SeoulPlay;
 using UnityEditor;
 using UnityEditor.Animations;
@@ -14,6 +15,8 @@ namespace SeoulPlay.Editor
     {
         private const string HeroModelPath = "Assets/SeoulPlay/Modeling/Hero/Hero_1.fbx";
         private const string BuildingPrefabPath = "Assets/SeoulPlay/Modeling/Background/Building.prefab";
+        private const string RiflePrefabPath = "Assets/SeoulPlay/Prefab/Weapon_Rifle1.prefab";
+        private const string BulletPrefabPath = "Assets/SeoulPlay/Prefab/Bullet.prefab";
         private const string AnimationFolder = "Assets/SeoulPlay/Animation";
         private const string Animation2Folder = "Assets/SeoulPlay/Animation2";
         private const string RollAnimationFolder = Animation2Folder + "/Roll";
@@ -430,11 +433,35 @@ namespace SeoulPlay.Editor
             characterController.radius = 0.3f;
 
             var mover = root.AddComponent<SimpleHeroMover>();
+            var weaponHolder = root.AddComponent<SeoulPlayWeaponHolder>();
+            var shooter = root.AddComponent<SeoulPlayShooter>();
+            var crosshair = root.AddComponent<SeoulPlayCrosshairUI>();
             var model = (GameObject)PrefabUtility.InstantiatePrefab(heroModel, root.transform);
             model.name = "Hero_1_Model";
             model.transform.localPosition = Vector3.zero;
             model.transform.localRotation = Quaternion.identity;
             model.transform.localScale = Vector3.one;
+
+            var cameraTarget = CreateChildTransform(root.transform, "CameraTarget", new Vector3(0f, 1.65f, 0f));
+            var rollCameraTarget = CreateChildTransform(root.transform, "RollCameraTarget", new Vector3(0f, 0.15f, 0f));
+            var gameplayCamera = CreateVirtualCamera(
+                root.transform,
+                "CM Gameplay Camera",
+                cameraTarget,
+                null,
+                20,
+                6f,
+                1.65f,
+                0.25f);
+            var rollCamera = CreateVirtualCamera(
+                root.transform,
+                "CM Roll Camera",
+                rollCameraTarget,
+                null,
+                5,
+                6f,
+                1.65f,
+                0.1f);
 
             var animator = model.GetComponent<Animator>();
             if (animator == null)
@@ -453,7 +480,39 @@ namespace SeoulPlay.Editor
             var serializedMover = new SerializedObject(mover);
             serializedMover.FindProperty("animator").objectReferenceValue = animator;
             serializedMover.FindProperty("modelRoot").objectReferenceValue = model.transform;
+            serializedMover.FindProperty("cameraTarget").objectReferenceValue = cameraTarget;
+            serializedMover.FindProperty("rollCameraTarget").objectReferenceValue = rollCameraTarget;
+            serializedMover.FindProperty("gameplayVirtualCamera").objectReferenceValue = gameplayCamera;
+            serializedMover.FindProperty("rollVirtualCamera").objectReferenceValue = rollCamera;
+            serializedMover.FindProperty("useCinemachineCamera").boolValue = false;
+            serializedMover.FindProperty("useSceneCameraStartPose").boolValue = true;
+            serializedMover.FindProperty("useRightStickForCamera").boolValue = true;
+            serializedMover.FindProperty("cameraSmoothTime").floatValue = 0.02f;
+            serializedMover.FindProperty("useRollRootMotion").boolValue = false;
+            serializedMover.FindProperty("useDirectionalRollAnimations").boolValue = false;
             serializedMover.ApplyModifiedPropertiesWithoutUndo();
+
+            var serializedWeaponHolder = new SerializedObject(weaponHolder);
+            serializedWeaponHolder.FindProperty("animator").objectReferenceValue = animator;
+            serializedWeaponHolder.FindProperty("weaponPrefab").objectReferenceValue =
+                AssetDatabase.LoadAssetAtPath<GameObject>(RiflePrefabPath);
+            serializedWeaponHolder.ApplyModifiedPropertiesWithoutUndo();
+
+            var serializedShooter = new SerializedObject(shooter);
+            serializedShooter.FindProperty("weaponHolder").objectReferenceValue = weaponHolder;
+            serializedShooter.FindProperty("crosshair").objectReferenceValue = crosshair;
+            serializedShooter.FindProperty("heroMover").objectReferenceValue = mover;
+            serializedShooter.FindProperty("projectilePrefab").objectReferenceValue =
+                AssetDatabase.LoadAssetAtPath<GameObject>(BulletPrefabPath);
+            serializedShooter.FindProperty("rotateCameraToAim").boolValue = false;
+            serializedShooter.ApplyModifiedPropertiesWithoutUndo();
+
+            var serializedCrosshair = new SerializedObject(crosshair);
+            serializedCrosshair.FindProperty("maxViewportOffset").floatValue = 0.12f;
+            serializedCrosshair.FindProperty("gamepadAimSpeed").floatValue = 0.35f;
+            serializedCrosshair.FindProperty("recenterSpeed").floatValue = 1.8f;
+            serializedCrosshair.FindProperty("gamepadControlsCrosshair").boolValue = true;
+            serializedCrosshair.ApplyModifiedPropertiesWithoutUndo();
 
             var serializedRelay = new SerializedObject(rootMotionRelay);
             serializedRelay.FindProperty("mover").objectReferenceValue = mover;
@@ -461,6 +520,43 @@ namespace SeoulPlay.Editor
 
             PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
             Object.DestroyImmediate(root);
+        }
+
+        private static Transform CreateChildTransform(Transform parent, string name, Vector3 localPosition)
+        {
+            var child = new GameObject(name).transform;
+            child.SetParent(parent, false);
+            child.localPosition = localPosition;
+            child.localRotation = Quaternion.identity;
+            child.localScale = Vector3.one;
+            return child;
+        }
+
+        private static CinemachineVirtualCamera CreateVirtualCamera(
+            Transform parent,
+            string name,
+            Transform follow,
+            Transform lookAt,
+            int priority,
+            float distance,
+            float height,
+            float damping)
+        {
+            var cameraObject = new GameObject(name);
+            cameraObject.transform.SetParent(parent, false);
+            cameraObject.transform.rotation = Quaternion.Euler(15f, 0f, 0f);
+            var virtualCamera = cameraObject.AddComponent<CinemachineVirtualCamera>();
+            virtualCamera.Priority = priority;
+            virtualCamera.Follow = follow;
+            virtualCamera.LookAt = lookAt;
+            virtualCamera.m_Lens.FieldOfView = 60f;
+            var transposer = virtualCamera.AddCinemachineComponent<CinemachineTransposer>();
+            transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
+            transposer.m_FollowOffset = new Vector3(0f, height, -distance);
+            transposer.m_XDamping = damping;
+            transposer.m_YDamping = damping;
+            transposer.m_ZDamping = damping;
+            return virtualCamera;
         }
 
         private static void CreateHeroTestScene()
@@ -480,12 +576,23 @@ namespace SeoulPlay.Editor
             cameraObject.tag = TagExists("MainCamera") ? "MainCamera" : "Untagged";
             var camera = cameraObject.AddComponent<Camera>();
             cameraObject.AddComponent<AudioListener>();
-            camera.transform.SetPositionAndRotation(new Vector3(0f, 2.2f, -5f), Quaternion.Euler(15f, 0f, 0f));
+            var brain = cameraObject.AddComponent<CinemachineBrain>();
+            brain.m_DefaultBlend.m_Style = CinemachineBlendDefinition.Style.Cut;
+            brain.m_DefaultBlend.m_Time = 0f;
+            camera.transform.SetPositionAndRotation(new Vector3(0f, 2.45f, -6f), Quaternion.Euler(15f, 0f, 0f));
 
             var mover = player.GetComponent<SimpleHeroMover>();
             var serializedMover = new SerializedObject(mover);
             serializedMover.FindProperty("followCamera").objectReferenceValue = camera;
             serializedMover.ApplyModifiedPropertiesWithoutUndo();
+
+            var shooter = player.GetComponent<SeoulPlayShooter>();
+            if (shooter != null)
+            {
+                var serializedShooter = new SerializedObject(shooter);
+                serializedShooter.FindProperty("aimCamera").objectReferenceValue = camera;
+                serializedShooter.ApplyModifiedPropertiesWithoutUndo();
+            }
 
             EditorSceneManager.SaveScene(scene, ScenePath);
         }
