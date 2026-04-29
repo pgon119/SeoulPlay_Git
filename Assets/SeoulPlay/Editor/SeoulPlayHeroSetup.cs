@@ -8,6 +8,7 @@ using UnityEditor.Animations;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 namespace SeoulPlay.Editor
 {
@@ -15,17 +16,31 @@ namespace SeoulPlay.Editor
     {
         private const string HeroModelPath = "Assets/SeoulPlay/Modeling/Hero/Hero_1.fbx";
         private const string BuildingPrefabPath = "Assets/SeoulPlay/Modeling/Background/Building.prefab";
-        private const string RiflePrefabPath = "Assets/SeoulPlay/Prefab/Weapon_Rifle1.prefab";
+        private const string RiflePrefabPath = "Assets/SeoulPlay/Prefab/Weapon_Rifle_1.prefab";
         private const string BulletPrefabPath = "Assets/SeoulPlay/Prefab/Bullet.prefab";
-        private const string AnimationFolder = "Assets/SeoulPlay/Animation";
-        private const string Animation2Folder = "Assets/SeoulPlay/Animation2";
+        private const string BossPrefabPath = "Assets/SeoulPlay/Prefab/Monster_Boss_1.prefab";
+        private const string HeroAnimationFolder = "Assets/SeoulPlay/Animaition/SeoulPlay_Hero_1";
+        private const string AnimationFolder = HeroAnimationFolder;
+        private const string Animation2Folder = HeroAnimationFolder;
         private const string RollAnimationFolder = Animation2Folder + "/Roll";
         private const string GeneratedFolder = "Assets/SeoulPlay/Generated";
-        private const string ControllerPath = GeneratedFolder + "/SeoulPlay_Hero.controller";
+        private const string ControllerPath = GeneratedFolder + "/SeoulPlay_Hero_Gameplay.controller";
         private const string UpperBodyMaskPath = GeneratedFolder + "/SeoulPlay_UpperBody.mask";
         private const string PrefabPath = GeneratedFolder + "/SeoulPlay_Hero_Player.prefab";
         private const string ScenePath = "Assets/Scenes/SeoulPlay_Test.unity";
+        private const string AutoRebuildEditorPrefKey = "SeoulPlay.HeroSetup.AutoRebuilt.v3";
+        private const float BossMaxHealth = 100f;
+        private const float HeroAttackDamage = 1f;
         private const float RollClipEndTrimFrames = 6f;
+        private static readonly Vector3 DefaultMainCameraPosition = new(0f, 1.4f, -2.1f);
+        private static readonly Vector3 DefaultMainCameraEulerAngles = new(8.6f, 0f, 0f);
+        private static readonly Vector3 DefaultGameplayCameraLocalPosition = new(0f, 2.9f, -5f);
+        private static readonly Vector3 DefaultRollCameraLocalPosition = new(0f, 1.6f, -5f);
+        private static readonly Vector3 DefaultChildCameraEulerAngles = new(8.6f, 0f, 0f);
+        private static readonly Vector3 DefaultBossRootPosition = new(0f, 0f, 1.248f);
+        private static readonly Vector3 DefaultBossModelLocalPosition = new(0f, 0f, 9.692f);
+        private static readonly Vector3 DefaultBossModelLocalEulerAngles = new(0f, -180f, 0f);
+        private static readonly Vector3 DefaultBossModelLocalScale = new(8f, 8f, 8f);
 
         private static readonly Dictionary<string, string> AnimationPaths = new()
         {
@@ -49,6 +64,26 @@ namespace SeoulPlay.Editor
             ["Fire"] = AnimationFolder + "/firing rifle.fbx",
             ["Die"] = Animation2Folder + "/death from the front.fbx",
         };
+
+        [InitializeOnLoadMethod]
+        private static void AutoRebuildOnceAfterCompile()
+        {
+            EditorApplication.delayCall += () =>
+            {
+                if (EditorPrefs.GetBool(AutoRebuildEditorPrefKey, false))
+                {
+                    return;
+                }
+
+                if (AssetDatabase.LoadAssetAtPath<GameObject>(HeroModelPath) == null)
+                {
+                    return;
+                }
+
+                RebuildHeroTestSetup();
+                EditorPrefs.SetBool(AutoRebuildEditorPrefKey, true);
+            };
+        }
 
         [MenuItem("SeoulPlay/Character/Rebuild Hero Test Setup")]
         public static void RebuildHeroTestSetup()
@@ -431,6 +466,9 @@ namespace SeoulPlay.Editor
             characterController.center = new Vector3(0f, 0.95f, 0f);
             characterController.height = 1.9f;
             characterController.radius = 0.3f;
+            characterController.stepOffset = 0.35f;
+            characterController.skinWidth = 0.06f;
+            characterController.minMoveDistance = 0f;
 
             var mover = root.AddComponent<SimpleHeroMover>();
             var weaponHolder = root.AddComponent<SeoulPlayWeaponHolder>();
@@ -450,18 +488,22 @@ namespace SeoulPlay.Editor
                 cameraTarget,
                 null,
                 20,
-                6f,
-                1.65f,
+                5f,
+                1.45f,
                 0.25f);
+            gameplayCamera.transform.localPosition = DefaultGameplayCameraLocalPosition;
+            gameplayCamera.transform.localEulerAngles = DefaultChildCameraEulerAngles;
             var rollCamera = CreateVirtualCamera(
                 root.transform,
                 "CM Roll Camera",
                 rollCameraTarget,
                 null,
                 5,
-                6f,
-                1.65f,
+                5f,
+                1.45f,
                 0.1f);
+            rollCamera.transform.localPosition = DefaultRollCameraLocalPosition;
+            rollCamera.transform.localEulerAngles = DefaultChildCameraEulerAngles;
 
             var animator = model.GetComponent<Animator>();
             if (animator == null)
@@ -487,6 +529,9 @@ namespace SeoulPlay.Editor
             serializedMover.FindProperty("useCinemachineCamera").boolValue = false;
             serializedMover.FindProperty("useSceneCameraStartPose").boolValue = true;
             serializedMover.FindProperty("useRightStickForCamera").boolValue = true;
+            serializedMover.FindProperty("cameraDistance").floatValue = 100f;
+            serializedMover.FindProperty("cameraHeight").floatValue = 0f;
+            serializedMover.FindProperty("cameraPitch").floatValue = 30f;
             serializedMover.FindProperty("cameraSmoothTime").floatValue = 0.02f;
             serializedMover.FindProperty("useRollRootMotion").boolValue = false;
             serializedMover.FindProperty("useDirectionalRollAnimations").boolValue = false;
@@ -496,6 +541,7 @@ namespace SeoulPlay.Editor
             serializedWeaponHolder.FindProperty("animator").objectReferenceValue = animator;
             serializedWeaponHolder.FindProperty("weaponPrefab").objectReferenceValue =
                 AssetDatabase.LoadAssetAtPath<GameObject>(RiflePrefabPath);
+            serializedWeaponHolder.FindProperty("defaultWeaponDamage").floatValue = HeroAttackDamage;
             serializedWeaponHolder.ApplyModifiedPropertiesWithoutUndo();
 
             var serializedShooter = new SerializedObject(shooter);
@@ -566,6 +612,7 @@ namespace SeoulPlay.Editor
 
             CreatePlane();
             CreateBuilding();
+            var boss = CreateBoss();
             CreateLight();
 
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
@@ -577,9 +624,12 @@ namespace SeoulPlay.Editor
             var camera = cameraObject.AddComponent<Camera>();
             cameraObject.AddComponent<AudioListener>();
             var brain = cameraObject.AddComponent<CinemachineBrain>();
+            brain.enabled = false;
             brain.m_DefaultBlend.m_Style = CinemachineBlendDefinition.Style.Cut;
             brain.m_DefaultBlend.m_Time = 0f;
-            camera.transform.SetPositionAndRotation(new Vector3(0f, 2.45f, -6f), Quaternion.Euler(15f, 0f, 0f));
+            camera.transform.SetPositionAndRotation(
+                DefaultMainCameraPosition,
+                Quaternion.Euler(DefaultMainCameraEulerAngles));
 
             var mover = player.GetComponent<SimpleHeroMover>();
             var serializedMover = new SerializedObject(mover);
@@ -594,6 +644,7 @@ namespace SeoulPlay.Editor
                 serializedShooter.ApplyModifiedPropertiesWithoutUndo();
             }
 
+            CreateBossHealthCanvas(boss != null ? boss.GetComponentInChildren<SeoulPlayDamageable>() : null);
             EditorSceneManager.SaveScene(scene, ScenePath);
         }
 
@@ -617,6 +668,96 @@ namespace SeoulPlay.Editor
             building.name = "Building";
             building.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
             building.transform.localScale = Vector3.one;
+        }
+
+        private static GameObject CreateBoss()
+        {
+            var bossPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(BossPrefabPath);
+            if (bossPrefab == null)
+            {
+                Debug.LogWarning($"Boss prefab was not found: {BossPrefabPath}");
+                return null;
+            }
+
+            var boss = (GameObject)PrefabUtility.InstantiatePrefab(bossPrefab);
+            boss.name = "Monster_Boss_1";
+            boss.transform.SetPositionAndRotation(DefaultBossRootPosition, Quaternion.identity);
+            boss.transform.localScale = Vector3.one;
+            if (boss.transform.childCount > 0)
+            {
+                var model = boss.transform.GetChild(0);
+                model.localPosition = DefaultBossModelLocalPosition;
+                model.localEulerAngles = DefaultBossModelLocalEulerAngles;
+                model.localScale = DefaultBossModelLocalScale;
+            }
+
+            ConfigureBossHealth(boss.GetComponentInChildren<SeoulPlayDamageable>());
+            return boss;
+        }
+
+        private static void ConfigureBossHealth(SeoulPlayDamageable damageable)
+        {
+            if (damageable == null)
+            {
+                return;
+            }
+
+            var serializedDamageable = new SerializedObject(damageable);
+            serializedDamageable.FindProperty("maxHealth").floatValue = BossMaxHealth;
+            serializedDamageable.FindProperty("currentHealth").floatValue = BossMaxHealth;
+            serializedDamageable.FindProperty("playHitReaction").boolValue = false;
+            serializedDamageable.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void CreateBossHealthCanvas(SeoulPlayDamageable bossDamageable)
+        {
+            var canvasObject = new GameObject("Boss HP Canvas");
+            var canvas = canvasObject.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 20;
+
+            var scaler = canvasObject.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
+
+            canvasObject.AddComponent<GraphicRaycaster>();
+
+            var barObject = new GameObject("Boss HP Bar");
+            barObject.transform.SetParent(canvasObject.transform, false);
+            var barRect = barObject.AddComponent<RectTransform>();
+            barRect.anchorMin = new Vector2(0.5f, 1f);
+            barRect.anchorMax = new Vector2(0.5f, 1f);
+            barRect.pivot = new Vector2(0.5f, 1f);
+            barRect.anchoredPosition = new Vector2(0f, -54f);
+            barRect.sizeDelta = new Vector2(560f, 18f);
+
+            var background = barObject.AddComponent<Image>();
+            background.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
+            background.type = Image.Type.Sliced;
+            background.color = Color.white;
+
+            var fillObject = new GameObject("Fill");
+            fillObject.transform.SetParent(barObject.transform, false);
+            var fillRect = fillObject.AddComponent<RectTransform>();
+            fillRect.anchorMin = Vector2.zero;
+            fillRect.anchorMax = Vector2.one;
+            fillRect.pivot = new Vector2(0f, 0.5f);
+            fillRect.offsetMin = new Vector2(3f, 3f);
+            fillRect.offsetMax = new Vector2(-3f, -3f);
+
+            var fill = fillObject.AddComponent<Image>();
+            fill.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
+            fill.type = Image.Type.Sliced;
+            fill.color = new Color(0.9f, 0.05f, 0.04f, 1f);
+
+            var healthBar = barObject.AddComponent<BossHealthBarUI>();
+            var serializedHealthBar = new SerializedObject(healthBar);
+            serializedHealthBar.FindProperty("target").objectReferenceValue = bossDamageable;
+            serializedHealthBar.FindProperty("fillImage").objectReferenceValue = fill;
+            serializedHealthBar.FindProperty("fillFollowSpeed").floatValue = 2.5f;
+            serializedHealthBar.ApplyModifiedPropertiesWithoutUndo();
         }
 
         private static void CreateLight()

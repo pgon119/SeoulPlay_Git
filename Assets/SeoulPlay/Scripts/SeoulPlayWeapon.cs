@@ -21,6 +21,11 @@ namespace SeoulPlay
             muzzle = value;
         }
 
+        public void SetDamage(float value)
+        {
+            damage = Mathf.Max(0f, value);
+        }
+
         private void OnDrawGizmosSelected()
         {
             var origin = Muzzle;

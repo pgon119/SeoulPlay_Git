@@ -19,6 +19,7 @@ namespace SeoulPlay
         [SerializeField, Min(0f)] private float aimCameraTurnSpeed = 540f;
         [SerializeField, Min(0f)] private float aimFacingHeight = 1.2f;
 
+        private readonly RaycastHit[] aimHits = new RaycastHit[16];
         private float nextFireTime;
 
         private void Awake()
@@ -120,11 +121,38 @@ namespace SeoulPlay
                 ? crosshair.ViewportPoint
                 : new Vector3(0.5f, 0.5f, 0f);
             var ray = aimCamera.ViewportPointToRay(viewportPoint);
-            var targetPoint = Physics.Raycast(ray, out var hit, 200f)
-                ? hit.point
-                : ray.origin + ray.direction * 80f;
+            var targetPoint = GetAimTargetPoint(ray);
             var direction = targetPoint - fromPosition;
             return direction.sqrMagnitude > 0.001f ? direction.normalized : ray.direction;
+        }
+
+        private Vector3 GetAimTargetPoint(Ray ray)
+        {
+            var hitCount = Physics.RaycastNonAlloc(
+                ray,
+                aimHits,
+                200f,
+                Physics.DefaultRaycastLayers,
+                QueryTriggerInteraction.Ignore);
+
+            var bestDistance = float.PositiveInfinity;
+            var targetPoint = ray.origin + ray.direction * 80f;
+            for (var i = 0; i < hitCount; i++)
+            {
+                var hit = aimHits[i];
+                if (hit.collider == null || hit.transform.IsChildOf(transform))
+                {
+                    continue;
+                }
+
+                if (hit.distance < bestDistance)
+                {
+                    bestDistance = hit.distance;
+                    targetPoint = hit.point;
+                }
+            }
+
+            return targetPoint;
         }
 
         private static bool IsFireHeld()

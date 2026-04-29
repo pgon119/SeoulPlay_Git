@@ -18,6 +18,7 @@ namespace SeoulPlay
 
         [Header("Equipped Weapon")]
         [SerializeField] private bool equipOnAwake = true;
+        [SerializeField, Min(0f)] private float defaultWeaponDamage = 1f;
         [SerializeField] private Vector3 weaponLocalPosition = Vector3.zero;
         [SerializeField] private Vector3 weaponLocalEulerAngles = Vector3.zero;
         [SerializeField] private Vector3 weaponLocalScale = Vector3.one;
@@ -90,6 +91,8 @@ namespace SeoulPlay
             {
                 equippedWeapon = weaponObject.AddComponent<SeoulPlayWeapon>();
             }
+
+            equippedWeapon.SetDamage(defaultWeaponDamage);
         }
 
         public void EquipPrototypeWeapon()
@@ -103,6 +106,7 @@ namespace SeoulPlay
             weaponObject.transform.localEulerAngles = prototypeLocalEulerAngles;
             weaponObject.transform.localScale = prototypeLocalScale;
             equippedWeapon = weaponObject.GetComponent<SeoulPlayWeapon>();
+            equippedWeapon.SetDamage(defaultWeaponDamage);
         }
 
         public void Unequip()

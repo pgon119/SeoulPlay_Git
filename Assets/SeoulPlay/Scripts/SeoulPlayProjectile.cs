@@ -47,6 +47,12 @@ namespace SeoulPlay
                 return;
             }
 
+            var damageable = other.GetComponentInParent<SeoulPlayDamageable>();
+            if (damageable != null && damageable.IsAlive)
+            {
+                damageable.TakeDamage(damage, direction, ignoredRoot);
+            }
+
             if (other.attachedRigidbody != null)
             {
                 other.attachedRigidbody.AddForce(direction * damage, ForceMode.Impulse);
