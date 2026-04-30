@@ -471,6 +471,13 @@ namespace SeoulPlay.Editor
                 serializedAttackController.FindProperty("heldRockObject").objectReferenceValue =
                     heldRock != null ? heldRock.gameObject : null;
                 serializedAttackController.FindProperty("rotateTowardTarget").boolValue = false;
+                serializedAttackController.FindProperty("projectileSpeed").floatValue = 16f;
+                serializedAttackController.FindProperty("projectileGravity").floatValue = 9.5f;
+                serializedAttackController.FindProperty("aimRandomRadius").floatValue = 1.25f;
+                serializedAttackController.FindProperty("projectileVisualSideOffset").floatValue = -0.75f;
+                serializedAttackController.FindProperty("projectileVisualDownOffset").floatValue = 0f;
+                serializedAttackController.FindProperty("projectileVisualOffsetDelay").floatValue = 0.1f;
+                serializedAttackController.FindProperty("projectileVisualOffsetDuration").floatValue = 0.35f;
                 serializedAttackController.ApplyModifiedPropertiesWithoutUndo();
 
                 var serializedReceiver = new SerializedObject(receiver);

@@ -30,6 +30,7 @@ namespace SeoulPlay.Editor
         private const string ScenePath = "Assets/Scenes/SeoulPlay_Test.unity";
         private const string AutoRebuildEditorPrefKey = "SeoulPlay.HeroSetup.AutoRebuilt.v3";
         private const float BossMaxHealth = 100f;
+        private const float HeroMaxHealth = 100f;
         private const float HeroAttackDamage = 1f;
         private const float RollClipEndTrimFrames = 6f;
         private static readonly Vector3 DefaultMainCameraPosition = new(0f, 1.4f, -2.1f);
@@ -474,6 +475,7 @@ namespace SeoulPlay.Editor
             var weaponHolder = root.AddComponent<SeoulPlayWeaponHolder>();
             var shooter = root.AddComponent<SeoulPlayShooter>();
             var crosshair = root.AddComponent<SeoulPlayCrosshairUI>();
+            var damageable = root.AddComponent<SeoulPlayDamageable>();
             var model = (GameObject)PrefabUtility.InstantiatePrefab(heroModel, root.transform);
             model.name = "Hero_1_Model";
             model.transform.localPosition = Vector3.zero;
@@ -482,6 +484,7 @@ namespace SeoulPlay.Editor
 
             var cameraTarget = CreateChildTransform(root.transform, "CameraTarget", new Vector3(0f, 1.65f, 0f));
             var rollCameraTarget = CreateChildTransform(root.transform, "RollCameraTarget", new Vector3(0f, 0.15f, 0f));
+            CreateChildTransform(root.transform, "ProjectileTarget_Foot", new Vector3(0f, 0.05f, 0f));
             var gameplayCamera = CreateVirtualCamera(
                 root.transform,
                 "CM Gameplay Camera",
@@ -564,6 +567,8 @@ namespace SeoulPlay.Editor
             serializedRelay.FindProperty("mover").objectReferenceValue = mover;
             serializedRelay.ApplyModifiedPropertiesWithoutUndo();
 
+            ConfigureHeroHealth(damageable, animator);
+
             PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
             Object.DestroyImmediate(root);
         }
@@ -644,7 +649,27 @@ namespace SeoulPlay.Editor
                 serializedShooter.ApplyModifiedPropertiesWithoutUndo();
             }
 
-            CreateBossHealthCanvas(boss != null ? boss.GetComponentInChildren<SeoulPlayDamageable>() : null);
+            var uiCanvas = CreateHealthCanvas();
+            CreateHealthBar(
+                uiCanvas.transform,
+                "Boss HP Bar",
+                boss != null ? boss.GetComponentInChildren<SeoulPlayDamageable>() : null,
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0f, -54f),
+                new Vector2(560f, 18f),
+                new Color(0.9f, 0.05f, 0.04f, 1f));
+            CreateHealthBar(
+                uiCanvas.transform,
+                "Hero HP Bar",
+                player.GetComponentInChildren<SeoulPlayDamageable>(),
+                new Vector2(1f, 0f),
+                new Vector2(1f, 0f),
+                new Vector2(1f, 0f),
+                new Vector2(-42f, 42f),
+                new Vector2(320f, 18f),
+                new Color(0.1f, 0.75f, 0.25f, 1f));
             EditorSceneManager.SaveScene(scene, ScenePath);
         }
 
@@ -695,6 +720,24 @@ namespace SeoulPlay.Editor
             return boss;
         }
 
+        private static void ConfigureHeroHealth(SeoulPlayDamageable damageable, Animator animator)
+        {
+            if (damageable == null)
+            {
+                return;
+            }
+
+            var serializedDamageable = new SerializedObject(damageable);
+            serializedDamageable.FindProperty("maxHealth").floatValue = HeroMaxHealth;
+            serializedDamageable.FindProperty("currentHealth").floatValue = HeroMaxHealth;
+            serializedDamageable.FindProperty("fillHealthOnAwake").boolValue = true;
+            serializedDamageable.FindProperty("disableCollidersOnDeath").boolValue = false;
+            serializedDamageable.FindProperty("destroyOnDeath").boolValue = false;
+            serializedDamageable.FindProperty("animator").objectReferenceValue = animator;
+            serializedDamageable.FindProperty("playHitReaction").boolValue = false;
+            serializedDamageable.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         private static void ConfigureBossHealth(SeoulPlayDamageable damageable)
         {
             if (damageable == null)
@@ -709,9 +752,9 @@ namespace SeoulPlay.Editor
             serializedDamageable.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void CreateBossHealthCanvas(SeoulPlayDamageable bossDamageable)
+        private static GameObject CreateHealthCanvas()
         {
-            var canvasObject = new GameObject("Boss HP Canvas");
+            var canvasObject = new GameObject("Gameplay HP Canvas");
             var canvas = canvasObject.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 20;
@@ -723,15 +766,28 @@ namespace SeoulPlay.Editor
             scaler.matchWidthOrHeight = 0.5f;
 
             canvasObject.AddComponent<GraphicRaycaster>();
+            return canvasObject;
+        }
 
-            var barObject = new GameObject("Boss HP Bar");
-            barObject.transform.SetParent(canvasObject.transform, false);
+        private static void CreateHealthBar(
+            Transform parent,
+            string name,
+            SeoulPlayDamageable target,
+            Vector2 anchorMin,
+            Vector2 anchorMax,
+            Vector2 pivot,
+            Vector2 anchoredPosition,
+            Vector2 sizeDelta,
+            Color fillColor)
+        {
+            var barObject = new GameObject(name);
+            barObject.transform.SetParent(parent, false);
             var barRect = barObject.AddComponent<RectTransform>();
-            barRect.anchorMin = new Vector2(0.5f, 1f);
-            barRect.anchorMax = new Vector2(0.5f, 1f);
-            barRect.pivot = new Vector2(0.5f, 1f);
-            barRect.anchoredPosition = new Vector2(0f, -54f);
-            barRect.sizeDelta = new Vector2(560f, 18f);
+            barRect.anchorMin = anchorMin;
+            barRect.anchorMax = anchorMax;
+            barRect.pivot = pivot;
+            barRect.anchoredPosition = anchoredPosition;
+            barRect.sizeDelta = sizeDelta;
 
             var background = barObject.AddComponent<Image>();
             background.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
@@ -750,11 +806,11 @@ namespace SeoulPlay.Editor
             var fill = fillObject.AddComponent<Image>();
             fill.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
             fill.type = Image.Type.Sliced;
-            fill.color = new Color(0.9f, 0.05f, 0.04f, 1f);
+            fill.color = fillColor;
 
             var healthBar = barObject.AddComponent<BossHealthBarUI>();
             var serializedHealthBar = new SerializedObject(healthBar);
-            serializedHealthBar.FindProperty("target").objectReferenceValue = bossDamageable;
+            serializedHealthBar.FindProperty("target").objectReferenceValue = target;
             serializedHealthBar.FindProperty("fillImage").objectReferenceValue = fill;
             serializedHealthBar.FindProperty("fillFollowSpeed").floatValue = 2.5f;
             serializedHealthBar.ApplyModifiedPropertiesWithoutUndo();

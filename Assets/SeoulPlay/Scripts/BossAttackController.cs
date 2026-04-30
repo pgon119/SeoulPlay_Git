@@ -5,6 +5,7 @@ namespace SeoulPlay
     [DisallowMultipleComponent]
     public sealed class BossAttackController : MonoBehaviour
     {
+        private const string FootTargetName = "ProjectileTarget_Foot";
         private static readonly int Attack01Hash = Animator.StringToHash("Attack01");
 
         [Header("References")]
@@ -21,11 +22,18 @@ namespace SeoulPlay
         [SerializeField] private bool rotateTowardTarget;
         [SerializeField, Min(0f)] private float turnSpeed = 360f;
         [SerializeField, Min(0f)] private float projectileDamage = 12f;
-        [SerializeField, Min(0f)] private float projectileSpeed = 18f;
-        [SerializeField, Min(0f)] private float projectileGravity = 7f;
+        [SerializeField, Min(0f), Tooltip("Initial launch speed for the boss rock projectile.")]
+        private float projectileSpeed = 16f;
+        [SerializeField, Min(0f), Tooltip("Custom downward gravity applied to the boss rock projectile. Higher values make the arc drop faster.")]
+        private float projectileGravity = 9.5f;
         [SerializeField, Min(0f)] private float projectileSpin = 360f;
         [SerializeField, Min(0.1f)] private float projectileLifetime = 4f;
         [SerializeField, Min(0f)] private float targetAimHeight = 1.1f;
+        [SerializeField, Min(0f)] private float aimRandomRadius = 1.25f;
+        [SerializeField] private float projectileVisualSideOffset = -0.75f;
+        [SerializeField, Min(0f)] private float projectileVisualDownOffset = 0f;
+        [SerializeField, Min(0f)] private float projectileVisualOffsetDelay = 0.1f;
+        [SerializeField, Min(0.01f)] private float projectileVisualOffsetDuration = 0.35f;
         [SerializeField, Min(0f)] private float spawnForwardOffset = 0.8f;
         [SerializeField, Min(0.05f)] private float defaultRockScale = 0.45f;
         [SerializeField] private bool autoAttack = true;
@@ -152,6 +160,12 @@ namespace SeoulPlay
 
             projectile.Launch(direction, projectileSpeed, projectileDamage, projectileLifetime, transform);
             projectile.ConfigureMotion(projectileGravity, projectileSpin);
+            projectile.ConfigureVisualOffset(
+                projectileVisualSideOffset,
+                projectileVisualDownOffset,
+                transform.right,
+                projectileVisualOffsetDelay,
+                projectileVisualOffsetDuration);
         }
 
         public void SetTarget(Transform value)
@@ -268,7 +282,7 @@ namespace SeoulPlay
                 return transform.forward;
             }
 
-            var targetPosition = target.position + Vector3.up * targetAimHeight;
+            var targetPosition = GetProjectileTargetPosition(true);
             if (projectileGravity > 0f && TryGetBallisticDirection(spawnPosition, targetPosition, out var ballisticDirection))
             {
                 return ballisticDirection;
@@ -276,6 +290,34 @@ namespace SeoulPlay
 
             var direction = targetPosition - spawnPosition;
             return direction.sqrMagnitude > 0.001f ? direction.normalized : transform.forward;
+        }
+
+        private Vector3 GetProjectileTargetPosition(bool includeRandomOffset)
+        {
+            var targetPosition = GetBaseProjectileTargetPosition();
+            if (includeRandomOffset && aimRandomRadius > 0f)
+            {
+                var randomOffset = Random.insideUnitCircle * aimRandomRadius;
+                targetPosition += new Vector3(randomOffset.x, 0f, randomOffset.y);
+            }
+
+            return targetPosition;
+        }
+
+        private Vector3 GetBaseProjectileTargetPosition()
+        {
+            if (target == null)
+            {
+                return transform.position + transform.forward * spawnForwardOffset;
+            }
+
+            var footTarget = FindChildTransform(target, FootTargetName);
+            if (footTarget != null)
+            {
+                return footTarget.position;
+            }
+
+            return target.position + Vector3.up * targetAimHeight;
         }
 
         private bool TryGetBallisticDirection(Vector3 origin, Vector3 targetPosition, out Vector3 launchDirection)
@@ -374,6 +416,24 @@ namespace SeoulPlay
             return null;
         }
 
+        private static Transform FindChildTransform(Transform root, string childName)
+        {
+            if (root == null || string.IsNullOrEmpty(childName))
+            {
+                return null;
+            }
+
+            foreach (var child in root.GetComponentsInChildren<Transform>(true))
+            {
+                if (child.name == childName)
+                {
+                    return child;
+                }
+            }
+
+            return null;
+        }
+
         private GameObject CreateDefaultRock(Vector3 position, Quaternion rotation)
         {
             var rockObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -425,6 +485,37 @@ namespace SeoulPlay
             Gizmos.color = Color.yellow;
             Gizmos.DrawSphere(spawnPosition, 0.15f);
             Gizmos.DrawRay(spawnPosition, transform.forward * 1.5f);
+
+            if (target == null)
+            {
+                return;
+            }
+
+            var targetPosition = GetProjectileTargetPosition(false);
+            Gizmos.color = new Color(0.2f, 0.9f, 1f, 0.8f);
+            Gizmos.DrawWireSphere(targetPosition, Mathf.Max(0.1f, aimRandomRadius));
+
+            if (!TryGetBallisticDirection(spawnPosition, targetPosition, out var launchDirection))
+            {
+                launchDirection = (targetPosition - spawnPosition).normalized;
+            }
+
+            var velocity = launchDirection * projectileSpeed;
+            var previous = spawnPosition;
+            var step = 0.08f;
+            var maxTime = Mathf.Min(projectileLifetime, 3f);
+
+            for (var time = step; time <= maxTime; time += step)
+            {
+                var next = spawnPosition + velocity * time;
+                if (projectileGravity > 0f)
+                {
+                    next += 0.5f * Physics.gravity.normalized * projectileGravity * time * time;
+                }
+
+                Gizmos.DrawLine(previous, next);
+                previous = next;
+            }
         }
     }
 }

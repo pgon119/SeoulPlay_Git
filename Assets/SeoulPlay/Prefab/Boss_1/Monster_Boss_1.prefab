@@ -176,11 +176,16 @@ MonoBehaviour:
   rotateTowardTarget: 0
   turnSpeed: 360
   projectileDamage: 12
-  projectileSpeed: 18
-  projectileGravity: 7
+  projectileSpeed: 16
+  projectileGravity: 9.5
   projectileSpin: 360
   projectileLifetime: 4
   targetAimHeight: 1.1
+  aimRandomRadius: 1.25
+  projectileVisualSideOffset: -0.75
+  projectileVisualDownOffset: 0
+  projectileVisualOffsetDelay: 0.1
+  projectileVisualOffsetDuration: 0.35
   spawnForwardOffset: 0.8
   defaultRockScale: 0.45
   autoAttack: 1
