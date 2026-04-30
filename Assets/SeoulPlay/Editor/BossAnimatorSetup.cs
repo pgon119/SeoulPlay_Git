@@ -9,14 +9,19 @@ namespace SeoulPlay.Editor
 {
     public static class BossAnimatorSetup
     {
-        private const string BossPrefabPath = "Assets/SeoulPlay/Prefab/Monster_Boss_1.prefab";
+        private const string BossPrefabPath = "Assets/SeoulPlay/Prefab/Boss_1/Monster_Boss_1.prefab";
+        private const string RockProjectilePrefabPath = "Assets/SeoulPlay/Prefab/Boss_1/Boss_1_Attack _1_RockProjectile.prefab";
         private const string BossModelPath = "Assets/SeoulPlay/Modeling/Monster/Boss_Monster/Monster_Boss_1.fbx";
         private const string IdleClipPath = "Assets/SeoulPlay/Animaition/Monster_Boss_1/Monster_Boss_1_Idle_1.fbx";
+        private const string Attack1ClipPath = "Assets/SeoulPlay/Animaition/Monster_Boss_1/Monster_Boss_1_Attack_1.anim";
         private const string GeneratedFolder = "Assets/SeoulPlay/Generated/Boss";
         private const string ControllerPath = GeneratedFolder + "/Monster_Boss_1_BossAnimator.controller";
         private const string PlaceholderFolder = GeneratedFolder + "/PlaceholderClips";
         private const string PlaceholderAnchorName = "AnimationPlaceholderAnchor";
-        private const string AutoBuildEditorPrefKey = "SeoulPlay.BossAnimatorSetup.AutoBuilt.Monster_Boss_1.v4";
+        private const string RockHoldPointName = "Attack_1_RockHoldPoint";
+        private const string HeldRockName = "Boss_1_Attack _1_RockProjectile";
+        private const string RockSpawnPointName = "RockProjectileSpawnPoint";
+        private const string AutoBuildEditorPrefKey = "SeoulPlay.BossAnimatorSetup.AutoBuilt.Monster_Boss_1.v5";
         private const float BossMaxHealth = 100f;
 
         [InitializeOnLoadMethod]
@@ -48,7 +53,12 @@ namespace SeoulPlay.Editor
             ConfigureBossModelImports();
 
             var idleClip = LoadPrimaryClip(IdleClipPath);
-            var clips = CreatePlaceholderClips();
+            var attack1Clip = EnsureClipEvent(
+                AssetDatabase.LoadAssetAtPath<AnimationClip>(Attack1ClipPath),
+                "Attack01_Hit",
+                0.45f,
+                false);
+            var clips = CreatePlaceholderClips(attack1Clip);
             var controller = CreateController(idleClip, clips);
             var avatar = LoadPrimaryAvatar(BossModelPath) ?? LoadPrimaryAvatar(IdleClipPath);
             ApplyToBossPrefab(controller, avatar);
@@ -238,13 +248,14 @@ namespace SeoulPlay.Editor
             toIdle.duration = 0.12f;
         }
 
-        private static BossClips CreatePlaceholderClips()
+        private static BossClips CreatePlaceholderClips(AnimationClip attack1Clip)
         {
+            var attack1Fallback = CreateClip("Boss_Attack_01_Placeholder", 1.2f, false, ("Attack01_Hit", 0.45f));
             return new BossClips
             {
                 IdleFallback = CreateClip("Boss_Idle_Placeholder", 1f, true),
                 Move = CreateClip("Boss_Move_Placeholder", 1f, true),
-                Attack01 = CreateClip("Boss_Attack_01_Placeholder", 1.2f, false, ("Attack01_Hit", 0.45f)),
+                Attack01 = attack1Clip != null ? attack1Clip : attack1Fallback,
                 Attack02 = CreateClip("Boss_Attack_02_Placeholder", 1.8f, false, ("Attack02_Hit", 0.95f)),
                 Attack03 = CreateClip("Boss_Attack_03_Placeholder", 2f, false, ("AttackSignal", 0.35f), ("Attack03_Hit", 1.1f)),
                 Hit = CreateClip("Boss_Hit_Placeholder", 0.45f, false),
@@ -252,6 +263,48 @@ namespace SeoulPlay.Editor
                 Enrage = CreateClip("Boss_Enrage_Placeholder", 1.6f, false, ("Enrage_Start", 0.1f)),
                 Death = CreateClip("Boss_Death_Placeholder", 2f, false)
             };
+        }
+
+        private static AnimationClip EnsureClipEvent(
+            AnimationClip clip,
+            string functionName,
+            float normalizedTime,
+            bool loopTime)
+        {
+            if (clip == null || string.IsNullOrEmpty(functionName))
+            {
+                return clip;
+            }
+
+            var changed = false;
+            var settings = AnimationUtility.GetAnimationClipSettings(clip);
+            if (settings.loopTime != loopTime)
+            {
+                settings.loopTime = loopTime;
+                AnimationUtility.SetAnimationClipSettings(clip, settings);
+                changed = true;
+            }
+
+            var events = AnimationUtility.GetAnimationEvents(clip);
+            if (events.Any(animationEvent => animationEvent.functionName == functionName))
+            {
+                if (changed)
+                {
+                    EditorUtility.SetDirty(clip);
+                }
+
+                return clip;
+            }
+
+            var eventList = events.ToList();
+            eventList.Add(new AnimationEvent
+            {
+                functionName = functionName,
+                time = Mathf.Clamp01(normalizedTime) * Mathf.Max(0.01f, clip.length)
+            });
+            AnimationUtility.SetAnimationEvents(clip, eventList.ToArray());
+            EditorUtility.SetDirty(clip);
+            return clip;
         }
 
         private static AnimationClip CreateClip(
@@ -307,11 +360,11 @@ namespace SeoulPlay.Editor
 
         private static void ConfigureBossModelImports()
         {
-            ConfigureGenericModelImporter(BossModelPath, false);
-            ConfigureGenericModelImporter(IdleClipPath, true);
+            ConfigureHumanoidModelImporter(BossModelPath, false);
+            ConfigureHumanoidModelImporter(IdleClipPath, true);
         }
 
-        private static void ConfigureGenericModelImporter(string path, bool loopImportedClips)
+        private static void ConfigureHumanoidModelImporter(string path, bool loopImportedClips)
         {
             var importer = AssetImporter.GetAtPath(path) as ModelImporter;
             if (importer == null)
@@ -320,9 +373,9 @@ namespace SeoulPlay.Editor
             }
 
             var changed = false;
-            if (importer.animationType != ModelImporterAnimationType.Generic)
+            if (importer.animationType != ModelImporterAnimationType.Human)
             {
-                importer.animationType = ModelImporterAnimationType.Generic;
+                importer.animationType = ModelImporterAnimationType.Human;
                 changed = true;
             }
 
@@ -376,7 +429,7 @@ namespace SeoulPlay.Editor
                 var receiver = prefabRoot.GetComponentInChildren<BossAnimationEventReceiver>();
                 if (receiver == null)
                 {
-                    animator.gameObject.AddComponent<BossAnimationEventReceiver>();
+                    receiver = animator.gameObject.AddComponent<BossAnimationEventReceiver>();
                 }
 
                 if (animator.transform.Find(PlaceholderAnchorName) == null)
@@ -385,6 +438,44 @@ namespace SeoulPlay.Editor
                     anchor.hideFlags = HideFlags.HideInHierarchy;
                     anchor.transform.SetParent(animator.transform, false);
                 }
+
+                var attackController = prefabRoot.GetComponent<BossAttackController>();
+                if (attackController == null)
+                {
+                    attackController = prefabRoot.AddComponent<BossAttackController>();
+                }
+
+                var spawnPoint = FindChild(prefabRoot.transform, RockHoldPointName) ??
+                    prefabRoot.transform.Find(RockSpawnPointName);
+                if (spawnPoint == null)
+                {
+                    var spawnObject = new GameObject(RockSpawnPointName);
+                    spawnPoint = spawnObject.transform;
+                    spawnPoint.SetParent(prefabRoot.transform, false);
+                    spawnPoint.localPosition = new Vector3(0f, 1.6f, 1.2f);
+                    spawnPoint.localRotation = Quaternion.identity;
+                    spawnPoint.localScale = Vector3.one;
+                }
+
+                var heldRock = FindChild(prefabRoot.transform, HeldRockName);
+                if (heldRock != null)
+                {
+                    heldRock.gameObject.SetActive(false);
+                }
+
+                var serializedAttackController = new SerializedObject(attackController);
+                serializedAttackController.FindProperty("animator").objectReferenceValue = animator;
+                serializedAttackController.FindProperty("projectileSpawnPoint").objectReferenceValue = spawnPoint;
+                serializedAttackController.FindProperty("rockProjectilePrefab").objectReferenceValue =
+                    AssetDatabase.LoadAssetAtPath<GameObject>(RockProjectilePrefabPath);
+                serializedAttackController.FindProperty("heldRockObject").objectReferenceValue =
+                    heldRock != null ? heldRock.gameObject : null;
+                serializedAttackController.FindProperty("rotateTowardTarget").boolValue = false;
+                serializedAttackController.ApplyModifiedPropertiesWithoutUndo();
+
+                var serializedReceiver = new SerializedObject(receiver);
+                serializedReceiver.FindProperty("attackController").objectReferenceValue = attackController;
+                serializedReceiver.ApplyModifiedPropertiesWithoutUndo();
 
                 var damageable = prefabRoot.GetComponent<SeoulPlayDamageable>();
                 if (damageable != null)
@@ -420,6 +511,24 @@ namespace SeoulPlay.Editor
                 }
                 current = next;
             }
+        }
+
+        private static Transform FindChild(Transform root, string childName)
+        {
+            if (root == null || string.IsNullOrEmpty(childName))
+            {
+                return null;
+            }
+
+            foreach (var child in root.GetComponentsInChildren<Transform>(true))
+            {
+                if (child.name == childName)
+                {
+                    return child;
+                }
+            }
+
+            return null;
         }
 
         private struct BossClips

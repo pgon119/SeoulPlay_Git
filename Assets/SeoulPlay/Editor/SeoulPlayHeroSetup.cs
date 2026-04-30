@@ -18,7 +18,7 @@ namespace SeoulPlay.Editor
         private const string BuildingPrefabPath = "Assets/SeoulPlay/Modeling/Background/Building.prefab";
         private const string RiflePrefabPath = "Assets/SeoulPlay/Prefab/Weapon_Rifle_1.prefab";
         private const string BulletPrefabPath = "Assets/SeoulPlay/Prefab/Bullet.prefab";
-        private const string BossPrefabPath = "Assets/SeoulPlay/Prefab/Monster_Boss_1.prefab";
+        private const string BossPrefabPath = "Assets/SeoulPlay/Prefab/Boss_1/Monster_Boss_1.prefab";
         private const string HeroAnimationFolder = "Assets/SeoulPlay/Animaition/SeoulPlay_Hero_1";
         private const string AnimationFolder = HeroAnimationFolder;
         private const string Animation2Folder = HeroAnimationFolder;
