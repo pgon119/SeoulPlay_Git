@@ -183,15 +183,16 @@ MonoBehaviour:
   attackFacingAngle: 12
   turnInPlaceMoveSpeed: 0.3
   allowRotateDuringCooldown: 1
-  projectileDamage: 12
-  projectileSpeed: 16
-  projectileGravity: 9.5
+  logChaseMovement: 0
+  projectileDamage: 10
+  projectileSpeed: 22
+  projectileGravity: 6
   projectileSpin: 360
   projectileLifetime: 4
   targetAimHeight: 1.1
-  aimRandomRadius: 1.25
-  projectileVisualSideOffset: -0.75
-  projectileVisualDownOffset: 0
+  aimRandomRadius: 0
+  projectileVisualSideOffset: 1
+  projectileVisualDownOffset: 0.8
   projectileVisualOffsetDelay: 0.1
   projectileVisualOffsetDuration: 0.35
   spawnForwardOffset: 0.8
@@ -328,12 +329,12 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: efa94264959a601458672a150cb3bc6e,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: 9.692
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: efa94264959a601458672a150cb3bc6e,
         type: 3}
       propertyPath: m_LocalRotation.w
-      value: -0.00000004371139
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: efa94264959a601458672a150cb3bc6e,
         type: 3}
@@ -343,7 +344,7 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: efa94264959a601458672a150cb3bc6e,
         type: 3}
       propertyPath: m_LocalRotation.y
-      value: -1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: efa94264959a601458672a150cb3bc6e,
         type: 3}

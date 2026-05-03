@@ -29,38 +29,90 @@ namespace SeoulPlay
         [SerializeField] private GameObject heldRockObject;
 
         [Header("AI Ranges")]
-        [SerializeField, Min(0f)] private float detectionRange = 30f;
-        [SerializeField, Min(0f)] private float attackRange = 12f;
-        [SerializeField, Min(0f)] private float stopDistance = 10f;
+        [SerializeField, Min(0f), Tooltip("보스가 플레이어를 발견하고 추적을 시작하는 거리입니다. 이 값 밖으로 나가면 보스가 대기 상태로 돌아갑니다.")]
+        private float detectionRange = 30f;
+
+        [SerializeField, Min(0f), Tooltip("보스가 공격할 수 있다고 판단하는 최대 거리입니다. Detection Range보다 크게 잡아도 OnValidate에서 Detection Range 안으로 제한됩니다.")]
+        private float attackRange = 12f;
+
+        [SerializeField, Min(0f), Tooltip("보스가 플레이어에게 접근하다가 멈추는 거리입니다. 현재 공격 로직상 실제 투척 거리는 이 값에 가까워집니다.")]
+        private float stopDistance = 10f;
 
         [Header("Attack 1 - Rock Throw")]
-        [SerializeField, Min(0.1f)] private float attackCooldown = 2.5f;
-        [SerializeField, Min(0.1f)] private float attackLockDuration = 2.2f;
-        [SerializeField, Min(0f)] private float chaseMoveSpeed = 1.6f;
-        [SerializeField, Min(0f)] private float chaseStopBuffer = 0.25f;
-        [SerializeField, Min(0f)] private float chaseAcceleration = 6f;
-        [SerializeField, Min(0f)] private float rotateSpeed = 360f;
-        [SerializeField, Range(0f, 180f)] private float moveAngleThreshold = 15f;
-        [SerializeField, Range(0f, 180f)] private float attackFacingAngle = 12f;
-        [SerializeField, Min(0f)] private float turnInPlaceMoveSpeed = 0f;
-        [SerializeField] private bool allowRotateDuringCooldown = true;
-        [SerializeField] private bool logChaseMovement;
-        [SerializeField, Min(0f)] private float projectileDamage = 12f;
-        [SerializeField, Min(0f), Tooltip("Initial launch speed for the boss rock projectile.")]
+        [SerializeField, Min(0.1f), Tooltip("공격이 끝난 뒤 다음 공격을 시작하기까지 기다리는 시간입니다. 값이 작을수록 보스가 더 자주 공격합니다.")]
+        private float attackCooldown = 2.5f;
+
+        [SerializeField, Min(0.1f), Tooltip("공격 애니메이션 중 보스가 다른 행동으로 넘어가지 못하게 잠그는 시간입니다. 공격 모션 길이에 맞춰 조정합니다.")]
+        private float attackLockDuration = 2.2f;
+
+        [SerializeField, Min(0f), Tooltip("플레이어를 향해 다가갈 때의 이동 속도입니다. 값이 클수록 보스가 빠르게 추적합니다.")]
+        private float chaseMoveSpeed = 1.6f;
+
+        [SerializeField, Min(0f), Tooltip("공격 거리 근처에서 멈출 때 사용하는 여유 거리입니다. 값이 크면 보스가 조금 더 멀리서 멈춥니다.")]
+        private float chaseStopBuffer = 0.25f;
+
+        [SerializeField, Min(0f), Tooltip("추적 속도가 목표 속도까지 올라가는 가속도입니다. 값이 클수록 보스가 즉시 속도를 냅니다.")]
+        private float chaseAcceleration = 6f;
+
+        [SerializeField, Min(0f), Tooltip("플레이어를 바라보도록 회전하는 속도입니다. 값이 클수록 방향 전환이 빠릅니다.")]
+        private float rotateSpeed = 360f;
+
+        [SerializeField, Range(0f, 180f), Tooltip("플레이어 방향과 보스 정면의 각도 차이가 이 값보다 크면 이동 애니메이션을 멈추고 회전에 집중합니다.")]
+        private float moveAngleThreshold = 15f;
+
+        [SerializeField, Range(0f, 180f), Tooltip("공격을 시작하기 전에 플레이어를 바라봐야 하는 각도 기준입니다. 값이 작을수록 더 정확히 바라본 뒤 공격합니다.")]
+        private float attackFacingAngle = 12f;
+
+        [SerializeField, Min(0f), Tooltip("제자리에서 방향만 돌 때 애니메이터에 전달할 이동 속도입니다. 보통 0이면 제자리 회전처럼 보입니다.")]
+        private float turnInPlaceMoveSpeed = 0f;
+
+        [SerializeField, Tooltip("켜면 공격 후 쿨다운 중에도 플레이어 방향으로 몸을 돌립니다.")]
+        private bool allowRotateDuringCooldown = true;
+
+        [SerializeField, Tooltip("켜면 추적 중 이동 여부, 거리, 각도, 속도 로그를 콘솔에 출력합니다. 디버깅할 때만 켜는 것을 권장합니다.")]
+        private bool logChaseMovement;
+
+        [SerializeField, Min(0f), Tooltip("돌 투사체가 플레이어에게 맞았을 때 주는 피해량입니다.")]
+        private float projectileDamage = 12f;
+
+        [SerializeField, Min(0f), Tooltip("돌 투사체의 초기 발사 속도입니다. 값이 클수록 빠르고 낮은 궤적으로 날아갑니다.")]
         private float projectileSpeed = 16f;
-        [SerializeField, Min(0f), Tooltip("Custom downward gravity applied to the boss rock projectile. Higher values make the arc drop faster.")]
+
+        [SerializeField, Min(0f), Tooltip("돌 투사체에 적용되는 아래 방향 중력입니다. 값이 클수록 포물선이 빨리 떨어집니다.")]
         private float projectileGravity = 9.5f;
-        [SerializeField, Min(0f)] private float projectileSpin = 360f;
-        [SerializeField, Min(0.1f)] private float projectileLifetime = 4f;
-        [SerializeField, Min(0f)] private float targetAimHeight = 1.1f;
-        [SerializeField, Min(0f)] private float aimRandomRadius = 1.25f;
-        [SerializeField] private float projectileVisualSideOffset = -0.75f;
-        [SerializeField, Min(0f)] private float projectileVisualDownOffset = 0f;
-        [SerializeField, Min(0f)] private float projectileVisualOffsetDelay = 0.1f;
-        [SerializeField, Min(0.01f)] private float projectileVisualOffsetDuration = 0.35f;
-        [SerializeField, Min(0f)] private float spawnForwardOffset = 0.8f;
-        [SerializeField, Min(0.05f)] private float defaultRockScale = 0.45f;
-        [SerializeField] private bool autoAttack = true;
+
+        [SerializeField, Min(0f), Tooltip("날아가는 돌의 회전 속도입니다. 시각 효과용 값이라 명중 판정에는 거의 영향이 없습니다.")]
+        private float projectileSpin = 360f;
+
+        [SerializeField, Min(0.1f), Tooltip("발사된 돌이 자동으로 사라지기까지의 시간입니다. 너무 작으면 도착 전에 사라질 수 있습니다.")]
+        private float projectileLifetime = 4f;
+
+        [SerializeField, Min(0f), Tooltip("보스가 조준할 플레이어 위치의 높이 보정입니다. 값이 클수록 몸통이나 머리 쪽을 향해 던집니다.")]
+        private float targetAimHeight = 1.1f;
+
+        [SerializeField, Min(0f), Tooltip("조준 위치에 랜덤으로 더하는 반경입니다. 값이 클수록 돌이 빗나갈 가능성이 커집니다.")]
+        private float aimRandomRadius = 1.25f;
+
+        [SerializeField, Tooltip("발사 직후 돌의 보이는 위치를 좌우로 보정하는 값입니다. 양수/음수로 좌우 방향을 바꿀 수 있습니다.")]
+        private float projectileVisualSideOffset = -0.75f;
+
+        [SerializeField, Min(0f), Tooltip("발사 직후 돌의 보이는 위치를 아래로 내리는 값입니다. 손 위치와 실제 궤적이 어색할 때 조정합니다.")]
+        private float projectileVisualDownOffset = 0f;
+
+        [SerializeField, Min(0f), Tooltip("돌의 시각 위치 보정을 시작하기 전 기다리는 시간입니다.")]
+        private float projectileVisualOffsetDelay = 0.1f;
+
+        [SerializeField, Min(0.01f), Tooltip("돌의 시각 위치 보정이 원래 궤적으로 섞여 들어가는 시간입니다. 값이 클수록 부드럽지만 늦게 따라갑니다.")]
+        private float projectileVisualOffsetDuration = 0.35f;
+
+        [SerializeField, Min(0f), Tooltip("발사 위치를 보스 정면으로 밀어내는 거리입니다. 값이 크면 돌이 보스 몸 안에서 나오지 않습니다.")]
+        private float spawnForwardOffset = 0.8f;
+
+        [SerializeField, Min(0.05f), Tooltip("돌 프리팹에 별도 스케일이 없을 때 사용하는 기본 크기입니다.")]
+        private float defaultRockScale = 0.45f;
+
+        [SerializeField, Tooltip("켜면 보스가 자동으로 플레이어를 추적하고 공격합니다. 끄면 대기 상태에 머뭅니다.")]
+        private bool autoAttack = true;
 
         private SeoulPlayDamageable damageable;
         [SerializeField] private BossState currentState = BossState.Idle;
@@ -535,10 +587,13 @@ namespace SeoulPlay
                 return transform.position + transform.forward * spawnForwardOffset;
             }
 
-            var footTarget = FindChildTransform(target, FootTargetName);
-            if (footTarget != null)
+            if (targetAimHeight <= 0f)
             {
-                return footTarget.position;
+                var footTarget = FindChildTransform(target, FootTargetName);
+                if (footTarget != null)
+                {
+                    return footTarget.position;
+                }
             }
 
             return target.position + Vector3.up * targetAimHeight;
