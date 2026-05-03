@@ -170,11 +170,19 @@ MonoBehaviour:
   rockProjectilePrefab: {fileID: 6630980314950899450, guid: d923193caf86fa14c9064ef3beb6a93c,
     type: 3}
   heldRockObject: {fileID: 2289129874375504037}
-  attackRange: 24
+  detectionRange: 30
+  attackRange: 12
+  stopDistance: 8
   attackCooldown: 2.5
-  attackLockDuration: 1.2
-  rotateTowardTarget: 0
-  turnSpeed: 360
+  attackLockDuration: 2.2
+  chaseMoveSpeed: 1.6
+  chaseStopBuffer: 0.25
+  chaseAcceleration: 6
+  rotateSpeed: 360
+  moveAngleThreshold: 15
+  attackFacingAngle: 12
+  turnInPlaceMoveSpeed: 0.3
+  allowRotateDuringCooldown: 1
   projectileDamage: 12
   projectileSpeed: 16
   projectileGravity: 9.5
@@ -189,6 +197,7 @@ MonoBehaviour:
   spawnForwardOffset: 0.8
   defaultRockScale: 0.45
   autoAttack: 1
+  currentState: 0
 --- !u!1 &3760876873783549796
 GameObject:
   m_ObjectHideFlags: 0

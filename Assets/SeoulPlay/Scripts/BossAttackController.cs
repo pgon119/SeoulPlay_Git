@@ -7,6 +7,19 @@ namespace SeoulPlay
     {
         private const string FootTargetName = "ProjectileTarget_Foot";
         private static readonly int Attack01Hash = Animator.StringToHash("Attack01");
+        private static readonly int Attack02Hash = Animator.StringToHash("Attack02");
+        private static readonly int Attack03Hash = Animator.StringToHash("Attack03");
+        private static readonly int IsMovingHash = Animator.StringToHash("IsMoving");
+        private static readonly int MoveSpeedHash = Animator.StringToHash("MoveSpeed");
+
+        public enum BossState
+        {
+            Idle,
+            Chase,
+            Attack,
+            Cooldown,
+            Dead
+        }
 
         [Header("References")]
         [SerializeField] private Animator animator;
@@ -15,12 +28,23 @@ namespace SeoulPlay
         [SerializeField] private GameObject rockProjectilePrefab;
         [SerializeField] private GameObject heldRockObject;
 
+        [Header("AI Ranges")]
+        [SerializeField, Min(0f)] private float detectionRange = 30f;
+        [SerializeField, Min(0f)] private float attackRange = 12f;
+        [SerializeField, Min(0f)] private float stopDistance = 10f;
+
         [Header("Attack 1 - Rock Throw")]
-        [SerializeField, Min(0f)] private float attackRange = 24f;
         [SerializeField, Min(0.1f)] private float attackCooldown = 2.5f;
-        [SerializeField, Min(0.1f)] private float attackLockDuration = 1.2f;
-        [SerializeField] private bool rotateTowardTarget;
-        [SerializeField, Min(0f)] private float turnSpeed = 360f;
+        [SerializeField, Min(0.1f)] private float attackLockDuration = 2.2f;
+        [SerializeField, Min(0f)] private float chaseMoveSpeed = 1.6f;
+        [SerializeField, Min(0f)] private float chaseStopBuffer = 0.25f;
+        [SerializeField, Min(0f)] private float chaseAcceleration = 6f;
+        [SerializeField, Min(0f)] private float rotateSpeed = 360f;
+        [SerializeField, Range(0f, 180f)] private float moveAngleThreshold = 15f;
+        [SerializeField, Range(0f, 180f)] private float attackFacingAngle = 12f;
+        [SerializeField, Min(0f)] private float turnInPlaceMoveSpeed = 0f;
+        [SerializeField] private bool allowRotateDuringCooldown = true;
+        [SerializeField] private bool logChaseMovement;
         [SerializeField, Min(0f)] private float projectileDamage = 12f;
         [SerializeField, Min(0f), Tooltip("Initial launch speed for the boss rock projectile.")]
         private float projectileSpeed = 16f;
@@ -39,10 +63,14 @@ namespace SeoulPlay
         [SerializeField] private bool autoAttack = true;
 
         private SeoulPlayDamageable damageable;
-        private float nextAttackTime;
+        [SerializeField] private BossState currentState = BossState.Idle;
         private float attackLockedUntil;
+        private float cooldownEndsAt;
+        private float currentChaseSpeed;
         private bool attack1RockFired;
         private GameObject attack1RockClone;
+
+        public BossState CurrentState => currentState;
 
         private void Awake()
         {
@@ -51,6 +79,11 @@ namespace SeoulPlay
             if (animator == null)
             {
                 animator = GetComponentInChildren<Animator>();
+            }
+
+            if (animator != null && animator.applyRootMotion)
+            {
+                animator.applyRootMotion = false;
             }
 
             if (target == null)
@@ -70,14 +103,60 @@ namespace SeoulPlay
             }
 
             HideHeldRock();
+            SetAnimatorMovement(false, 0f);
+        }
+
+        private void OnValidate()
+        {
+            detectionRange = Mathf.Max(0f, detectionRange);
+            attackRange = Mathf.Clamp(attackRange, 0f, detectionRange);
+            stopDistance = Mathf.Clamp(stopDistance, 0f, attackRange);
+            attackCooldown = Mathf.Max(0.1f, attackCooldown);
+            attackLockDuration = Mathf.Max(0.1f, attackLockDuration);
+            chaseMoveSpeed = Mathf.Max(0f, chaseMoveSpeed);
+            chaseAcceleration = Mathf.Max(0f, chaseAcceleration);
+            rotateSpeed = Mathf.Max(0f, rotateSpeed);
+            turnInPlaceMoveSpeed = Mathf.Max(0f, turnInPlaceMoveSpeed);
         }
 
         private void Update()
         {
-            if (!autoAttack || !CanAct())
+            if (!CanAct())
             {
+                ChangeState(BossState.Dead);
+            }
+
+            if (!autoAttack && currentState != BossState.Dead)
+            {
+                ChangeState(BossState.Idle);
+                SetAnimatorMovement(false, 0f);
                 return;
             }
+
+            switch (currentState)
+            {
+                case BossState.Idle:
+                    UpdateIdleState();
+                    break;
+                case BossState.Chase:
+                    UpdateChaseState();
+                    break;
+                case BossState.Attack:
+                    UpdateAttackState();
+                    break;
+                case BossState.Cooldown:
+                    UpdateCooldownState();
+                    break;
+                case BossState.Dead:
+                    UpdateDeadState();
+                    break;
+            }
+        }
+
+        private void UpdateIdleState()
+        {
+            currentChaseSpeed = 0f;
+            SetAnimatorMovement(false, 0f);
 
             if (target == null)
             {
@@ -88,38 +167,154 @@ namespace SeoulPlay
                 }
             }
 
-            if (rotateTowardTarget)
+            if (GetFlatDistanceToTarget() <= detectionRange)
             {
-                RotateTowardTarget();
+                ChangeState(BossState.Chase);
+            }
+        }
+
+        private void UpdateChaseState()
+        {
+            if (target == null)
+            {
+                ChangeState(BossState.Idle);
+                return;
             }
 
-            if (Time.time < nextAttackTime || Time.time < attackLockedUntil)
+            var distance = GetFlatDistanceToTarget();
+            if (distance > detectionRange)
+            {
+                ChangeState(BossState.Idle);
+                return;
+            }
+
+            if (distance <= GetStopDistance())
+            {
+                currentChaseSpeed = 0f;
+                var isFacingTarget = RotateTowardTarget(attackFacingAngle);
+                SetAnimatorMovement(false, 0f);
+
+                if (!isFacingTarget)
+                {
+                    return;
+                }
+
+                if (distance <= attackRange && Time.time >= cooldownEndsAt)
+                {
+                    StartAttack1();
+                }
+                else if (Time.time < cooldownEndsAt)
+                {
+                    ChangeState(BossState.Cooldown);
+                }
+
+                return;
+            }
+
+            ChaseTarget();
+        }
+
+        private void UpdateAttackState()
+        {
+            currentChaseSpeed = 0f;
+            SetAnimatorMovement(false, 0f);
+
+            if (Time.time >= attackLockedUntil)
+            {
+                cooldownEndsAt = Time.time + attackCooldown;
+                ChangeState(BossState.Cooldown);
+            }
+        }
+
+        private void UpdateCooldownState()
+        {
+            currentChaseSpeed = 0f;
+            if (allowRotateDuringCooldown && target != null && GetFlatDistanceToTarget() <= detectionRange)
+            {
+                RotateTowardTarget(attackFacingAngle);
+                SetAnimatorMovement(false, 0f);
+            }
+            else
+            {
+                SetAnimatorMovement(false, 0f);
+            }
+
+            if (Time.time < cooldownEndsAt)
             {
                 return;
             }
 
-            if (GetFlatDistanceToTarget() <= attackRange)
+            if (target == null || GetFlatDistanceToTarget() > detectionRange)
             {
-                StartAttack1();
+                ChangeState(BossState.Idle);
+                return;
             }
+
+            ChangeState(BossState.Chase);
+        }
+
+        private void UpdateDeadState()
+        {
+            currentChaseSpeed = 0f;
+            SetAnimatorMovement(false, 0f);
+            DestroyAttack1RockClone();
+            HideHeldRock();
         }
 
         public void StartAttack1()
         {
-            if (!CanAct())
+            if (!CanAct() || currentState == BossState.Attack)
             {
                 return;
             }
 
-            nextAttackTime = Time.time + attackCooldown;
+            ChangeState(BossState.Attack);
             attackLockedUntil = Time.time + attackLockDuration;
             attack1RockFired = false;
             DestroyAttack1RockClone();
             HideHeldRock();
+            currentChaseSpeed = 0f;
+            SetAnimatorMovement(false, 0f);
 
-            if (animator != null && HasAnimatorParameter(Attack01Hash))
+            if (animator != null && HasAnimatorParameter(Attack01Hash, AnimatorControllerParameterType.Trigger))
             {
                 animator.SetTrigger(Attack01Hash);
+            }
+        }
+
+        public void StartAttack2()
+        {
+            if (!CanAct() || currentState == BossState.Attack)
+            {
+                return;
+            }
+
+            ChangeState(BossState.Attack);
+            attackLockedUntil = Time.time + attackLockDuration;
+            currentChaseSpeed = 0f;
+            SetAnimatorMovement(false, 0f);
+
+            if (animator != null && HasAnimatorParameter(Attack02Hash, AnimatorControllerParameterType.Trigger))
+            {
+                animator.SetTrigger(Attack02Hash);
+            }
+        }
+
+        public void StartAttack3()
+        {
+            if (!CanAct() || currentState == BossState.Attack)
+            {
+                return;
+            }
+
+            ChangeState(BossState.Attack);
+            attackLockedUntil = Time.time + attackLockDuration;
+            currentChaseSpeed = 0f;
+            SetAnimatorMovement(false, 0f);
+
+            if (animator != null && HasAnimatorParameter(Attack03Hash, AnimatorControllerParameterType.Trigger))
+            {
+                animator.SetTrigger(Attack03Hash);
             }
         }
 
@@ -168,9 +363,28 @@ namespace SeoulPlay
                 projectileVisualOffsetDuration);
         }
 
+        public void FinishAttack()
+        {
+            if (currentState != BossState.Attack)
+            {
+                return;
+            }
+
+            attackLockedUntil = Mathf.Min(attackLockedUntil, Time.time);
+        }
+
+        public void Attack01_End()
+        {
+            FinishAttack();
+        }
+
         public void SetTarget(Transform value)
         {
             target = value;
+            if (currentState == BossState.Idle && target != null && CanAct())
+            {
+                ChangeState(BossState.Chase);
+            }
         }
 
         public void ShowHeldRock()
@@ -239,6 +453,16 @@ namespace SeoulPlay
         private bool CanAct()
         {
             return damageable == null || damageable.IsAlive;
+        }
+
+        private void ChangeState(BossState nextState)
+        {
+            if (currentState == nextState)
+            {
+                return;
+            }
+
+            currentState = nextState;
         }
 
         private Vector3 GetProjectileSpawnPosition(Transform spawnTransform)
@@ -347,25 +571,136 @@ namespace SeoulPlay
             return launchDirection.sqrMagnitude > 0.001f;
         }
 
-        private void RotateTowardTarget()
+        private bool RotateTowardTarget(float facingThreshold)
         {
             if (target == null)
             {
-                return;
+                return true;
             }
 
             var direction = target.position - transform.position;
             direction.y = 0f;
             if (direction.sqrMagnitude <= 0.001f)
             {
-                return;
+                return true;
             }
 
-            var targetRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+            var targetRotation = GetLookRotation(direction.normalized);
             transform.rotation = Quaternion.RotateTowards(
                 transform.rotation,
                 targetRotation,
-                turnSpeed * Time.deltaTime);
+                rotateSpeed * Time.deltaTime);
+            return Quaternion.Angle(transform.rotation, targetRotation) <= facingThreshold;
+        }
+
+        private void ChaseTarget()
+        {
+            if (target == null || chaseMoveSpeed <= 0f)
+            {
+                SetAnimatorMovement(false, 0f);
+                return;
+            }
+
+            var offset = target.position - transform.position;
+            offset.y = 0f;
+            var distance = offset.magnitude;
+            var targetDirection = offset.normalized;
+            var targetRotation = GetLookRotation(targetDirection);
+            var angleBeforeRotation = GetHorizontalForwardAngleTo(targetDirection);
+
+            if (distance <= GetStopDistance() || angleBeforeRotation > moveAngleThreshold)
+            {
+                currentChaseSpeed = Mathf.MoveTowards(currentChaseSpeed, 0f, chaseAcceleration * Time.deltaTime);
+                transform.rotation = Quaternion.RotateTowards(
+                    transform.rotation,
+                    targetRotation,
+                    rotateSpeed * Time.deltaTime);
+                var angleAfterTurnOnly = GetHorizontalForwardAngleTo(targetDirection);
+                LogChaseMovement(distance, angleBeforeRotation, angleAfterTurnOnly, false);
+                SetAnimatorMovement(false, 0f);
+                return;
+            }
+
+            transform.rotation = Quaternion.RotateTowards(
+                transform.rotation,
+                targetRotation,
+                rotateSpeed * Time.deltaTime);
+            var angleAfterRotation = GetHorizontalForwardAngleTo(targetDirection);
+
+            currentChaseSpeed = Mathf.MoveTowards(
+                currentChaseSpeed,
+                chaseMoveSpeed,
+                chaseAcceleration * Time.deltaTime);
+            var forward = transform.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude <= 0.001f)
+            {
+                SetAnimatorMovement(false, 0f);
+                return;
+            }
+
+            var remainingDistance = distance - GetStopDistance() + chaseStopBuffer;
+            var moveDistance = Mathf.Min(currentChaseSpeed * Time.deltaTime, remainingDistance);
+            transform.position += forward.normalized * moveDistance;
+            LogChaseMovement(distance, angleBeforeRotation, angleAfterRotation, true);
+            SetAnimatorMovement(true, currentChaseSpeed);
+        }
+
+        private void LogChaseMovement(float distance, float angleBeforeRotation, float angleAfterRotation, bool didMove)
+        {
+            if (!logChaseMovement)
+            {
+                return;
+            }
+
+            Debug.Log(
+                $"Boss Chase | moved={didMove} distance={distance:F2} angleBefore={angleBeforeRotation:F1} angleAfter={angleAfterRotation:F1} speed={currentChaseSpeed:F2}",
+                this);
+        }
+
+        private Quaternion GetLookRotation(Vector3 direction)
+        {
+            return Quaternion.LookRotation(direction, Vector3.up);
+        }
+
+        private float GetHorizontalForwardAngleTo(Vector3 targetDirection)
+        {
+            var forward = transform.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude <= 0.001f || targetDirection.sqrMagnitude <= 0.001f)
+            {
+                return 0f;
+            }
+
+            return Vector3.Angle(forward.normalized, targetDirection.normalized);
+        }
+
+        private float GetStopDistance()
+        {
+            if (attackRange <= 0f)
+            {
+                return Mathf.Max(0f, stopDistance);
+            }
+
+            return Mathf.Clamp(stopDistance, 0f, attackRange);
+        }
+
+        private void SetAnimatorMovement(bool isMoving, float moveSpeed)
+        {
+            if (animator == null || animator.runtimeAnimatorController == null)
+            {
+                return;
+            }
+
+            if (HasAnimatorParameter(IsMovingHash, AnimatorControllerParameterType.Bool))
+            {
+                animator.SetBool(IsMovingHash, isMoving);
+            }
+
+            if (HasAnimatorParameter(MoveSpeedHash, AnimatorControllerParameterType.Float))
+            {
+                animator.SetFloat(MoveSpeedHash, isMoving ? moveSpeed : 0f);
+            }
         }
 
         private float GetFlatDistanceToTarget()
@@ -455,7 +790,7 @@ namespace SeoulPlay
             return rockObject;
         }
 
-        private bool HasAnimatorParameter(int hash)
+        private bool HasAnimatorParameter(int hash, AnimatorControllerParameterType parameterType)
         {
             if (animator == null || animator.runtimeAnimatorController == null)
             {
@@ -464,7 +799,7 @@ namespace SeoulPlay
 
             foreach (var parameter in animator.parameters)
             {
-                if (parameter.nameHash == hash && parameter.type == AnimatorControllerParameterType.Trigger)
+                if (parameter.nameHash == hash && parameter.type == parameterType)
                 {
                     return true;
                 }
@@ -475,8 +810,12 @@ namespace SeoulPlay
 
         private void OnDrawGizmosSelected()
         {
+            Gizmos.color = new Color(0.45f, 0.65f, 1f, 0.3f);
+            Gizmos.DrawWireSphere(transform.position, detectionRange);
             Gizmos.color = new Color(1f, 0.45f, 0.05f, 0.35f);
             Gizmos.DrawWireSphere(transform.position, attackRange);
+            Gizmos.color = new Color(0.2f, 0.9f, 0.3f, 0.45f);
+            Gizmos.DrawWireSphere(transform.position, GetStopDistance());
 
             var spawnTransform = heldRockObject != null ? heldRockObject.transform : projectileSpawnPoint;
             var spawnPosition = spawnTransform != null

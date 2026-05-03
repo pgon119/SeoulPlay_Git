@@ -13,6 +13,8 @@ namespace SeoulPlay.Editor
         private const string RockProjectilePrefabPath = "Assets/SeoulPlay/Prefab/Boss_1/Boss_1_Attack _1_RockProjectile.prefab";
         private const string BossModelPath = "Assets/SeoulPlay/Modeling/Monster/Boss_Monster/Monster_Boss_1.fbx";
         private const string IdleClipPath = "Assets/SeoulPlay/Animaition/Monster_Boss_1/Monster_Boss_1_Idle_1.fbx";
+        private const string WalkClipPath = "Assets/SeoulPlay/Animaition/Monster_Boss_1/Monster_Boss_1_Walk_1.anim";
+        private const string WalkClipFallbackPath = "Assets/SeoulPlay/Animaition/Monster_Boss_1/Moster_Boss_1_Walk_1.anim";
         private const string Attack1ClipPath = "Assets/SeoulPlay/Animaition/Monster_Boss_1/Monster_Boss_1_Attack_1.anim";
         private const string GeneratedFolder = "Assets/SeoulPlay/Generated/Boss";
         private const string ControllerPath = GeneratedFolder + "/Monster_Boss_1_BossAnimator.controller";
@@ -21,7 +23,7 @@ namespace SeoulPlay.Editor
         private const string RockHoldPointName = "Attack_1_RockHoldPoint";
         private const string HeldRockName = "Boss_1_Attack _1_RockProjectile";
         private const string RockSpawnPointName = "RockProjectileSpawnPoint";
-        private const string AutoBuildEditorPrefKey = "SeoulPlay.BossAnimatorSetup.AutoBuilt.Monster_Boss_1.v5";
+        private const string AutoBuildEditorPrefKey = "SeoulPlay.BossAnimatorSetup.AutoBuilt.Monster_Boss_1.v6";
         private const float BossMaxHealth = 100f;
 
         [InitializeOnLoadMethod]
@@ -53,12 +55,16 @@ namespace SeoulPlay.Editor
             ConfigureBossModelImports();
 
             var idleClip = LoadPrimaryClip(IdleClipPath);
+            var walkClip = EnsureClipLoop(
+                AssetDatabase.LoadAssetAtPath<AnimationClip>(WalkClipPath) ??
+                AssetDatabase.LoadAssetAtPath<AnimationClip>(WalkClipFallbackPath),
+                true);
             var attack1Clip = EnsureClipEvent(
                 AssetDatabase.LoadAssetAtPath<AnimationClip>(Attack1ClipPath),
                 "Attack01_Hit",
                 0.45f,
                 false);
-            var clips = CreatePlaceholderClips(attack1Clip);
+            var clips = CreatePlaceholderClips(attack1Clip, walkClip);
             var controller = CreateController(idleClip, clips);
             var avatar = LoadPrimaryAvatar(BossModelPath) ?? LoadPrimaryAvatar(IdleClipPath);
             ApplyToBossPrefab(controller, avatar);
@@ -248,13 +254,13 @@ namespace SeoulPlay.Editor
             toIdle.duration = 0.12f;
         }
 
-        private static BossClips CreatePlaceholderClips(AnimationClip attack1Clip)
+        private static BossClips CreatePlaceholderClips(AnimationClip attack1Clip, AnimationClip walkClip)
         {
             var attack1Fallback = CreateClip("Boss_Attack_01_Placeholder", 1.2f, false, ("Attack01_Hit", 0.45f));
             return new BossClips
             {
                 IdleFallback = CreateClip("Boss_Idle_Placeholder", 1f, true),
-                Move = CreateClip("Boss_Move_Placeholder", 1f, true),
+                Move = walkClip != null ? walkClip : CreateClip("Boss_Move_Placeholder", 1f, true),
                 Attack01 = attack1Clip != null ? attack1Clip : attack1Fallback,
                 Attack02 = CreateClip("Boss_Attack_02_Placeholder", 1.8f, false, ("Attack02_Hit", 0.95f)),
                 Attack03 = CreateClip("Boss_Attack_03_Placeholder", 2f, false, ("AttackSignal", 0.35f), ("Attack03_Hit", 1.1f)),
@@ -303,6 +309,25 @@ namespace SeoulPlay.Editor
                 time = Mathf.Clamp01(normalizedTime) * Mathf.Max(0.01f, clip.length)
             });
             AnimationUtility.SetAnimationEvents(clip, eventList.ToArray());
+            EditorUtility.SetDirty(clip);
+            return clip;
+        }
+
+        private static AnimationClip EnsureClipLoop(AnimationClip clip, bool loopTime)
+        {
+            if (clip == null)
+            {
+                return null;
+            }
+
+            var settings = AnimationUtility.GetAnimationClipSettings(clip);
+            if (settings.loopTime == loopTime)
+            {
+                return clip;
+            }
+
+            settings.loopTime = loopTime;
+            AnimationUtility.SetAnimationClipSettings(clip, settings);
             EditorUtility.SetDirty(clip);
             return clip;
         }
@@ -470,7 +495,19 @@ namespace SeoulPlay.Editor
                     AssetDatabase.LoadAssetAtPath<GameObject>(RockProjectilePrefabPath);
                 serializedAttackController.FindProperty("heldRockObject").objectReferenceValue =
                     heldRock != null ? heldRock.gameObject : null;
-                serializedAttackController.FindProperty("rotateTowardTarget").boolValue = false;
+                serializedAttackController.FindProperty("detectionRange").floatValue = 30f;
+                serializedAttackController.FindProperty("attackRange").floatValue = 12f;
+                serializedAttackController.FindProperty("stopDistance").floatValue = 10f;
+                serializedAttackController.FindProperty("attackLockDuration").floatValue = 2.2f;
+                serializedAttackController.FindProperty("chaseMoveSpeed").floatValue = 1.6f;
+                serializedAttackController.FindProperty("chaseStopBuffer").floatValue = 0.25f;
+                serializedAttackController.FindProperty("chaseAcceleration").floatValue = 6f;
+                serializedAttackController.FindProperty("rotateSpeed").floatValue = 360f;
+                serializedAttackController.FindProperty("moveAngleThreshold").floatValue = 15f;
+                serializedAttackController.FindProperty("attackFacingAngle").floatValue = 12f;
+                serializedAttackController.FindProperty("turnInPlaceMoveSpeed").floatValue = 0f;
+                serializedAttackController.FindProperty("allowRotateDuringCooldown").boolValue = true;
+                serializedAttackController.FindProperty("logChaseMovement").boolValue = false;
                 serializedAttackController.FindProperty("projectileSpeed").floatValue = 16f;
                 serializedAttackController.FindProperty("projectileGravity").floatValue = 9.5f;
                 serializedAttackController.FindProperty("aimRandomRadius").floatValue = 1.25f;

@@ -34,6 +34,14 @@ namespace SeoulPlay
             Attack01_CreateRock();
         }
 
+        public void CreateAttack1RockClone()
+        {
+            if (attackController != null)
+            {
+                attackController.CreateAttack1RockClone();
+            }
+        }
+
         public void SpawnRock()
         {
             Attack01_CreateRock();
@@ -76,6 +84,19 @@ namespace SeoulPlay
             {
                 attackController.HideHeldRock();
             }
+        }
+
+        public void Attack01_End()
+        {
+            if (attackController != null)
+            {
+                attackController.FinishAttack();
+            }
+        }
+
+        public void FinishAttack()
+        {
+            Attack01_End();
         }
 
         public void Attack02_Hit()
