@@ -66,7 +66,6 @@ namespace SeoulPlay.Editor
             ["Die"] = Animation2Folder + "/death from the front.fbx",
         };
 
-        [InitializeOnLoadMethod]
         private static void AutoRebuildOnceAfterCompile()
         {
             EditorApplication.delayCall += () =>
@@ -86,7 +85,6 @@ namespace SeoulPlay.Editor
             };
         }
 
-        [MenuItem("SeoulPlay/Character/Rebuild Hero Test Setup")]
         public static void RebuildHeroTestSetup()
         {
             EnsureFolder(GeneratedFolder);
@@ -387,13 +385,14 @@ namespace SeoulPlay.Editor
             };
 
             AssetDatabase.AddObjectToAsset(blendTree, controller);
+            var diagonal = 1f / Mathf.Sqrt(2f);
             AddChild(blendTree, clips, "IdleAim", Vector2.zero);
             AddChild(blendTree, clips, "WalkForward", new Vector2(0f, 0.5f));
             AddChild(blendTree, clips, "WalkBackward", new Vector2(0f, -0.5f));
-            AddChild(blendTree, clips, "WalkForwardRight", new Vector2(0.5f, 0.5f));
-            AddChild(blendTree, clips, "WalkForwardLeft", new Vector2(-0.5f, 0.5f));
-            AddChild(blendTree, clips, "WalkBackwardRight", new Vector2(0.5f, -0.5f));
-            AddChild(blendTree, clips, "WalkBackwardLeft", new Vector2(-0.5f, -0.5f));
+            AddChild(blendTree, clips, "WalkForwardRight", new Vector2(diagonal, diagonal));
+            AddChild(blendTree, clips, "WalkForwardLeft", new Vector2(-diagonal, diagonal));
+            AddChild(blendTree, clips, "WalkBackwardRight", new Vector2(diagonal, -diagonal));
+            AddChild(blendTree, clips, "WalkBackwardLeft", new Vector2(-diagonal, -diagonal));
             AddChild(blendTree, clips, "RunForward", new Vector2(0f, 1f));
             AddChild(blendTree, clips, "RunBackward", new Vector2(0f, -1f));
             AddChild(blendTree, clips, "Strafe", new Vector2(1f, 0f));

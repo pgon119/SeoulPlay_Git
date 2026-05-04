@@ -11,17 +11,22 @@ namespace PixPlays.ElementalVFX
         public virtual void Play(VfxData data)
         {
             _data = data;
-            if (_data.Duration > _SafetyDestroy)
-            {
-                _SafetyDestroy += _data.Duration;//Offset the safety destroy by the duration if bigger;
-            }
-            Destroy(gameObject, _SafetyDestroy);
-            Invoke(nameof(Stop), _data.Duration);
+            CancelInvoke(nameof(Stop));
             StopAllCoroutines();
+
+            var safetyDestroyDelay = _SafetyDestroy;
+            if (_data.Duration > safetyDestroyDelay)
+            {
+                safetyDestroyDelay += _data.Duration;//Offset the safety destroy by the duration if bigger;
+            }
+
+            Destroy(gameObject, safetyDestroyDelay);
+            Invoke(nameof(Stop), _data.Duration);
         }
 
         public virtual void Stop()
         {
+            CancelInvoke(nameof(Stop));
             StopAllCoroutines();
             Destroy(gameObject, _DestoyDelay);
         }

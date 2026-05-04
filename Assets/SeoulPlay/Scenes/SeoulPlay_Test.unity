@@ -425,6 +425,7 @@ GameObject:
   - component: {fileID: 147180196}
   - component: {fileID: 147180195}
   - component: {fileID: 147180199}
+  - component: {fileID: 147180200}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -584,6 +585,20 @@ MonoBehaviour:
     m_MipBias: 0
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
+--- !u!114 &147180200
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 147180194}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a8f5f44633a4cf0a69b3478b179570f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  mouseLookEnabled: 0
+  heroMover: {fileID: 0}
 --- !u!1 &183871972
 GameObject:
   m_ObjectHideFlags: 0
@@ -753,6 +768,16 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6043821084753790226, guid: 86e6637a6c511db4da8b0c3cf57397c7,
         type: 3}
+      propertyPath: attack2SideAngle
+      value: 40
+      objectReference: {fileID: 0}
+    - target: {fileID: 6043821084753790226, guid: 86e6637a6c511db4da8b0c3cf57397c7,
+        type: 3}
+      propertyPath: attack2ForwardOffset
+      value: 2.84
+      objectReference: {fileID: 0}
+    - target: {fileID: 6043821084753790226, guid: 86e6637a6c511db4da8b0c3cf57397c7,
+        type: 3}
       propertyPath: projectileVisualSideOffset
       value: 0
       objectReference: {fileID: 0}
@@ -909,6 +934,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: SeoulPlay_Hero_Player
+      objectReference: {fileID: 0}
+    - target: {fileID: 4828167306849933152, guid: c8cb4c31ddd563341a38913041691154,
+        type: 3}
+      propertyPath: walkSpeed
+      value: 5
       objectReference: {fileID: 0}
     - target: {fileID: 4828167306849933152, guid: c8cb4c31ddd563341a38913041691154,
         type: 3}

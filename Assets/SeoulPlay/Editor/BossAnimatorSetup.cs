@@ -16,6 +16,8 @@ namespace SeoulPlay.Editor
         private const string WalkClipPath = "Assets/SeoulPlay/Animaition/Monster_Boss_1/Monster_Boss_1_Walk_1.anim";
         private const string WalkClipFallbackPath = "Assets/SeoulPlay/Animaition/Monster_Boss_1/Moster_Boss_1_Walk_1.anim";
         private const string Attack1ClipPath = "Assets/SeoulPlay/Animaition/Monster_Boss_1/Monster_Boss_1_Attack_1.anim";
+        private const string Attack2ClipPath = "Assets/SeoulPlay/Animaition/Monster_Boss_1/Moster_Boss_1_Hammer_1.anim";
+        private const string Attack3ClipPath = "Assets/SeoulPlay/Animaition/Monster_Boss_1/Moster_Boss_1_JumpAttack_1.anim";
         private const string GeneratedFolder = "Assets/SeoulPlay/Generated/Boss";
         private const string ControllerPath = GeneratedFolder + "/Monster_Boss_1_BossAnimator.controller";
         private const string PlaceholderFolder = GeneratedFolder + "/PlaceholderClips";
@@ -26,7 +28,6 @@ namespace SeoulPlay.Editor
         private const string AutoBuildEditorPrefKey = "SeoulPlay.BossAnimatorSetup.AutoBuilt.Monster_Boss_1.v6";
         private const float BossMaxHealth = 100f;
 
-        [InitializeOnLoadMethod]
         private static void AutoBuildOnceAfterCompile()
         {
             EditorApplication.delayCall += () =>
@@ -47,7 +48,6 @@ namespace SeoulPlay.Editor
             };
         }
 
-        [MenuItem("SeoulPlay/Boss/Rebuild Monster Boss 1 Animator")]
         public static void RebuildMonsterBoss1Animator()
         {
             EnsureFolder(GeneratedFolder);
@@ -64,7 +64,17 @@ namespace SeoulPlay.Editor
                 "Attack01_Hit",
                 0.45f,
                 false);
-            var clips = CreatePlaceholderClips(attack1Clip, walkClip);
+            var attack2Clip = EnsureClipEventAtFrameIfMissing(
+                AssetDatabase.LoadAssetAtPath<AnimationClip>(Attack2ClipPath),
+                "Attack02_Hit",
+                43,
+                false);
+            var attack3Clip = EnsureClipEventAtFrameIfMissing(
+                AssetDatabase.LoadAssetAtPath<AnimationClip>(Attack3ClipPath),
+                "Attack03_Hit",
+                54,
+                false);
+            var clips = CreatePlaceholderClips(attack1Clip, attack2Clip, attack3Clip, walkClip);
             var controller = CreateController(idleClip, clips);
             var avatar = LoadPrimaryAvatar(BossModelPath) ?? LoadPrimaryAvatar(IdleClipPath);
             ApplyToBossPrefab(controller, avatar);
@@ -254,7 +264,11 @@ namespace SeoulPlay.Editor
             toIdle.duration = 0.12f;
         }
 
-        private static BossClips CreatePlaceholderClips(AnimationClip attack1Clip, AnimationClip walkClip)
+        private static BossClips CreatePlaceholderClips(
+            AnimationClip attack1Clip,
+            AnimationClip attack2Clip,
+            AnimationClip attack3Clip,
+            AnimationClip walkClip)
         {
             var attack1Fallback = CreateClip("Boss_Attack_01_Placeholder", 1.2f, false, ("Attack01_Hit", 0.45f));
             return new BossClips
@@ -262,8 +276,12 @@ namespace SeoulPlay.Editor
                 IdleFallback = CreateClip("Boss_Idle_Placeholder", 1f, true),
                 Move = walkClip != null ? walkClip : CreateClip("Boss_Move_Placeholder", 1f, true),
                 Attack01 = attack1Clip != null ? attack1Clip : attack1Fallback,
-                Attack02 = CreateClip("Boss_Attack_02_Placeholder", 1.8f, false, ("Attack02_Hit", 0.95f)),
-                Attack03 = CreateClip("Boss_Attack_03_Placeholder", 2f, false, ("AttackSignal", 0.35f), ("Attack03_Hit", 1.1f)),
+                Attack02 = attack2Clip != null
+                    ? attack2Clip
+                    : CreateClip("Boss_Attack_02_Placeholder", 1.8f, false, ("Attack02_Hit", 0.95f)),
+                Attack03 = attack3Clip != null
+                    ? attack3Clip
+                    : CreateClip("Boss_Attack_03_Placeholder", 2f, false, ("AttackSignal", 0.35f), ("Attack03_Hit", 1.1f)),
                 Hit = CreateClip("Boss_Hit_Placeholder", 0.45f, false),
                 Stagger = CreateClip("Boss_Stagger_Placeholder", 1.2f, false),
                 Enrage = CreateClip("Boss_Enrage_Placeholder", 1.6f, false, ("Enrage_Start", 0.1f)),
@@ -310,6 +328,56 @@ namespace SeoulPlay.Editor
             });
             AnimationUtility.SetAnimationEvents(clip, eventList.ToArray());
             EditorUtility.SetDirty(clip);
+            return clip;
+        }
+
+        private static AnimationClip EnsureClipEventAtFrameIfMissing(
+            AnimationClip clip,
+            string functionName,
+            int frame,
+            bool loopTime)
+        {
+            if (clip == null || string.IsNullOrEmpty(functionName))
+            {
+                return clip;
+            }
+
+            var changed = false;
+            var settings = AnimationUtility.GetAnimationClipSettings(clip);
+            if (settings.loopTime != loopTime)
+            {
+                settings.loopTime = loopTime;
+                AnimationUtility.SetAnimationClipSettings(clip, settings);
+                changed = true;
+            }
+
+            var events = AnimationUtility.GetAnimationEvents(clip);
+            if (events.Any(animationEvent => animationEvent.functionName == functionName))
+            {
+                if (changed)
+                {
+                    EditorUtility.SetDirty(clip);
+                }
+
+                return clip;
+            }
+
+            var sampleRate = clip.frameRate > 0f ? clip.frameRate : 30f;
+            var clampedTime = Mathf.Clamp(frame / sampleRate, 0f, Mathf.Max(0.01f, clip.length));
+            var eventList = events.ToList();
+            eventList.Add(new AnimationEvent
+            {
+                functionName = functionName,
+                time = clampedTime
+            });
+            changed = true;
+
+            if (changed)
+            {
+                AnimationUtility.SetAnimationEvents(clip, eventList.ToArray());
+                EditorUtility.SetDirty(clip);
+            }
+
             return clip;
         }
 

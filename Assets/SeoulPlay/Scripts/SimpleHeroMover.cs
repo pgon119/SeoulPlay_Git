@@ -128,6 +128,14 @@ namespace SeoulPlay
         private Vector3 rollCameraTargetEndPosition;
         private Vector2 lastLocomotionInput;
         private int[] animatorParameterHashes = System.Array.Empty<int>();
+        private bool mouseCameraInputEnabled = true;
+
+        public bool MouseCameraInputEnabled => mouseCameraInputEnabled;
+
+        public void SetMouseCameraInputEnabled(bool enabled)
+        {
+            mouseCameraInputEnabled = enabled;
+        }
 
         private void Awake()
         {
@@ -266,15 +274,16 @@ namespace SeoulPlay
             {
                 cameraYaw += gamepadTurn * gamepadTurnSpeed * Time.deltaTime;
             }
-            else
+            else if (mouseCameraInputEnabled)
             {
                 cameraYaw += Input.GetAxis("Mouse X") * turnSpeed * Time.deltaTime;
             }
 
             var gamepadPitch = Input.GetAxis("RightAnalogVertical");
-            var pitchInput = useRightStickForCamera && Mathf.Abs(gamepadPitch) > gamepadDeadZone
+            var usesGamepadPitch = useRightStickForCamera && Mathf.Abs(gamepadPitch) > gamepadDeadZone;
+            var pitchInput = usesGamepadPitch
                 ? gamepadPitch
-                : Input.GetAxis("Mouse Y");
+                : mouseCameraInputEnabled ? Input.GetAxis("Mouse Y") : 0f;
             var pitchDirection = invertVerticalLook ? 1f : -1f;
             cameraPitch += pitchInput * pitchDirection * cameraPitchSpeed * Time.deltaTime;
             cameraPitch = Mathf.Clamp(cameraPitch, minCameraPitch, maxCameraPitch);

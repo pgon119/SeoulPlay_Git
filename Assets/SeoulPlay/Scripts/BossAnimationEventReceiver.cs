@@ -101,10 +101,44 @@ namespace SeoulPlay
 
         public void Attack02_Hit()
         {
+            if (attackController != null)
+            {
+                attackController.FireAttack2EarthBlast();
+            }
         }
 
         public void Attack03_Hit()
         {
+            if (attackController != null)
+            {
+                attackController.FireAttack3JumpSlam();
+            }
+        }
+
+        public void Attack03_Effect()
+        {
+            if (attackController != null)
+            {
+                attackController.FireAttack3ImpactVfx();
+            }
+        }
+
+        public void Attack03_Vfx()
+        {
+            Attack03_Effect();
+        }
+
+        public void Attack03_Damage()
+        {
+            if (attackController != null)
+            {
+                attackController.DamageAttack3Impact();
+            }
+        }
+
+        public void Attack03_Slam()
+        {
+            Attack03_Hit();
         }
 
         public void AttackSignal()

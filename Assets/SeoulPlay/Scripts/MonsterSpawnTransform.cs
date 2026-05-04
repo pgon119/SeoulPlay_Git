@@ -5,9 +5,8 @@ namespace SeoulPlay
     [DisallowMultipleComponent]
     public sealed class MonsterSpawnTransform : MonoBehaviour
     {
-        [Header("Target")]
-        [SerializeField] private Transform bossTransform;
-        [SerializeField] private bool useLocalSpace = true;
+        [SerializeField, HideInInspector] private Transform bossTransform;
+        [SerializeField, HideInInspector] private bool useLocalSpace = true;
 
         [Header("Monster_Boss_1 Start Transform")]
         [SerializeField] private Vector3 bossPosition;
@@ -21,6 +20,7 @@ namespace SeoulPlay
         private void Reset()
         {
             bossTransform = FindBossTransform();
+            CaptureCurrentBossTransform();
         }
 
         private void OnValidate()
@@ -57,6 +57,12 @@ namespace SeoulPlay
 
         private Transform FindBossTransform()
         {
+            if (gameObject.name == "Monster_Boss_1")
+            {
+                useLocalSpace = false;
+                return transform;
+            }
+
             foreach (Transform child in transform)
             {
                 if (child.name == "Monster_Boss_1")
@@ -66,6 +72,17 @@ namespace SeoulPlay
             }
 
             return transform.Find("Monster_Boss_1");
+        }
+
+        private void CaptureCurrentBossTransform()
+        {
+            if (bossTransform == null)
+            {
+                return;
+            }
+
+            bossPosition = useLocalSpace ? bossTransform.localPosition : bossTransform.position;
+            bossEulerAngles = useLocalSpace ? bossTransform.localEulerAngles : bossTransform.eulerAngles;
         }
     }
 }

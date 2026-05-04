@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 3103869229599240265}
   - component: {fileID: 8036581016414357138}
   - component: {fileID: 6043821084753790226}
+  - component: {fileID: 73674497939229800}
   m_Layer: 0
   m_Name: Monster_Boss_1
   m_TagString: Untagged
@@ -22,6 +23,22 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
+--- !u!114 &73674497939229800
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 73674497939229799}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d9ef5f7e6db94fda961937360a2c727b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  bossTransform: {fileID: 2791808629172646679}
+  useLocalSpace: 0
+  bossPosition: {x: 0, y: 0, z: 11}
+  bossEulerAngles: {x: 0, y: 180, z: 0}
 --- !u!4 &2791808629172646679
 Transform:
   m_ObjectHideFlags: 0
@@ -170,9 +187,14 @@ MonoBehaviour:
   rockProjectilePrefab: {fileID: 6630980314950899450, guid: d923193caf86fa14c9064ef3beb6a93c,
     type: 3}
   heldRockObject: {fileID: 2289129874375504037}
+  attack2VfxPrefab: {fileID: 7907260701345176331, guid: 2b437c0d81c55ff41a6e332e346d9d75,
+    type: 3}
+  attack2PillarVfxPrefab: {fileID: 7907260701345176331, guid: 5d3878ca1f07ec746acd7ad85b97ed7e,
+    type: 3}
+  attack2Origin: {fileID: 0}
   detectionRange: 30
   attackRange: 12
-  stopDistance: 8
+  stopDistance: 10
   attackCooldown: 2.5
   attackLockDuration: 2.2
   chaseMoveSpeed: 1.6
@@ -181,22 +203,56 @@ MonoBehaviour:
   rotateSpeed: 360
   moveAngleThreshold: 15
   attackFacingAngle: 12
-  turnInPlaceMoveSpeed: 0.3
+  turnInPlaceMoveSpeed: 0
   allowRotateDuringCooldown: 1
   logChaseMovement: 0
   projectileDamage: 10
-  projectileSpeed: 22
-  projectileGravity: 6
+  projectileSpeed: 16
+  projectileGravity: 9.5
   projectileSpin: 360
   projectileLifetime: 4
   targetAimHeight: 1.1
-  aimRandomRadius: 0
-  projectileVisualSideOffset: 1
-  projectileVisualDownOffset: 0.8
+  aimRandomRadius: 1.25
+  projectileVisualSideOffset: -0.75
+  projectileVisualDownOffset: 0
   projectileVisualOffsetDelay: 0.1
   projectileVisualOffsetDuration: 0.35
   spawnForwardOffset: 0.8
   defaultRockScale: 0.45
+  attack2Damage: 18
+  attack2Range: 8
+  attack2Radius: 1.5
+  attack2ForwardOffset: 1.2
+  attack2SideAngle: 35
+  attack2PillarCount: 6
+  attack2PillarSpacing: 1.2
+  attack2PillarDelayStep: 0.07
+  attack2PillarBaseRadius: 0.7
+  attack2PillarRadiusStep: 0.25
+  attack2VfxDuration: 2
+  attack2VfxDestroyDelay: 3
+  attack2HitMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  attack2HitTriggers: 1
+  attack2ParticlesOnly: 1
+  useAttack2InAutoAttack: 1
+  attack3Damage: 24
+  attack3DamageRadius: 3
+  attack3JumpDistance: 3
+  attack3ImpactForwardOffset: 1.2
+  attack3JumpDuration: 0.55
+  attack3JumpArcHeight: 1.2
+  attack3ImpactVfxPrefab: {fileID: 7907260701345176331, guid: 5d3878ca1f07ec746acd7ad85b97ed7e,
+    type: 3}
+  attack3VfxDuration: 2
+  attack3VfxDestroyDelay: 3
+  attack3HitMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  attack3HitTriggers: 1
+  attack3ParticlesOnly: 1
+  useAttack3InAutoAttack: 1
   autoAttack: 1
   currentState: 0
 --- !u!1 &3760876873783549796

@@ -1,4 +1,8 @@
+using System.Collections;
+using System.Collections.Generic;
+using PixPlays.ElementalVFX;
 using UnityEngine;
+using UnityEngine.Playables;
 
 namespace SeoulPlay
 {
@@ -6,9 +10,11 @@ namespace SeoulPlay
     public sealed class BossAttackController : MonoBehaviour
     {
         private const string FootTargetName = "ProjectileTarget_Foot";
+        private const string EarthBlastPillarUnitName = "EarthBlast_PillarUnit_BossSkill";
         private static readonly int Attack01Hash = Animator.StringToHash("Attack01");
         private static readonly int Attack02Hash = Animator.StringToHash("Attack02");
         private static readonly int Attack03Hash = Animator.StringToHash("Attack03");
+        private static readonly int Attack03StateHash = Animator.StringToHash("Attack_03");
         private static readonly int IsMovingHash = Animator.StringToHash("IsMoving");
         private static readonly int MoveSpeedHash = Animator.StringToHash("MoveSpeed");
 
@@ -27,6 +33,9 @@ namespace SeoulPlay
         [SerializeField] private Transform projectileSpawnPoint;
         [SerializeField] private GameObject rockProjectilePrefab;
         [SerializeField] private GameObject heldRockObject;
+        [SerializeField] private GameObject attack2VfxPrefab;
+        [SerializeField] private GameObject attack2PillarVfxPrefab;
+        [SerializeField] private Transform attack2Origin;
 
         [Header("AI Ranges")]
         [SerializeField, Min(0f), Tooltip("보스가 플레이어를 발견하고 추적을 시작하는 거리입니다. 이 값 밖으로 나가면 보스가 대기 상태로 돌아갑니다.")]
@@ -111,6 +120,40 @@ namespace SeoulPlay
         [SerializeField, Min(0.05f), Tooltip("돌 프리팹에 별도 스케일이 없을 때 사용하는 기본 크기입니다.")]
         private float defaultRockScale = 0.45f;
 
+        [Header("Attack 2 - Earth Blast")]
+        [SerializeField, Min(0f)] private float attack2Damage = 18f;
+        [SerializeField, Min(0.1f)] private float attack2Range = 8f;
+        [SerializeField, Min(0.05f)] private float attack2Radius = 1.5f;
+        [SerializeField, Min(0f)] private float attack2ForwardOffset = 1.2f;
+        [SerializeField, Range(0f, 90f)] private float attack2SideAngle = 35f;
+        [SerializeField, Min(1)] private int attack2PillarCount = 6;
+        [SerializeField, Min(0.05f)] private float attack2PillarSpacing = 1.2f;
+        [SerializeField, Min(0f)] private float attack2PillarDelayStep = 0.07f;
+        [SerializeField, Min(0.05f)] private float attack2PillarBaseRadius = 0.7f;
+        [SerializeField, Min(0f)] private float attack2PillarRadiusStep = 0.25f;
+        [SerializeField, Min(0.1f)] private float attack2VfxDuration = 2f;
+        [SerializeField, Min(0f)] private float attack2VfxDestroyDelay = 3f;
+        [SerializeField] private LayerMask attack2HitMask = ~0;
+        [SerializeField] private bool attack2HitTriggers = true;
+        [SerializeField] private bool attack2ParticlesOnly = true;
+        [SerializeField] private bool useAttack2InAutoAttack = true;
+
+        [Header("Attack 3 - Jump Slam")]
+        [SerializeField, Min(0f)] private float attack3Damage = 24f;
+        [SerializeField, Min(0.05f)] private float attack3DamageRadius = 3f;
+        [SerializeField, Min(0f)] private float attack3JumpDistance = 3f;
+        [SerializeField, Min(0f)] private float attack3ImpactForwardOffset = 1.2f;
+        [SerializeField, Min(0f)] private float attack3JumpStartDelay = 0.12f;
+        [SerializeField, Min(0.05f)] private float attack3JumpDuration = 0.55f;
+        [SerializeField, Min(0f)] private float attack3JumpArcHeight = 1.2f;
+        [SerializeField] private GameObject attack3ImpactVfxPrefab;
+        [SerializeField, Min(0.1f)] private float attack3VfxDuration = 2f;
+        [SerializeField, Min(0f)] private float attack3VfxDestroyDelay = 3f;
+        [SerializeField] private LayerMask attack3HitMask = ~0;
+        [SerializeField] private bool attack3HitTriggers = true;
+        [SerializeField] private bool attack3ParticlesOnly = true;
+        [SerializeField] private bool useAttack3InAutoAttack = true;
+
         [SerializeField, Tooltip("켜면 보스가 자동으로 플레이어를 추적하고 공격합니다. 끄면 대기 상태에 머뭅니다.")]
         private bool autoAttack = true;
 
@@ -121,6 +164,12 @@ namespace SeoulPlay
         private float currentChaseSpeed;
         private bool attack1RockFired;
         private GameObject attack1RockClone;
+        private bool useAttack2Next;
+        private bool attack2EarthBlastFired;
+        private bool useAttack3Next;
+        private bool attack3SlamFired;
+        private bool attack3ImpactVfxFired;
+        private Coroutine attack3JumpRoutine;
 
         public BossState CurrentState => currentState;
 
@@ -169,6 +218,26 @@ namespace SeoulPlay
             chaseAcceleration = Mathf.Max(0f, chaseAcceleration);
             rotateSpeed = Mathf.Max(0f, rotateSpeed);
             turnInPlaceMoveSpeed = Mathf.Max(0f, turnInPlaceMoveSpeed);
+            attack2Damage = Mathf.Max(0f, attack2Damage);
+            attack2Range = Mathf.Max(0.1f, attack2Range);
+            attack2Radius = Mathf.Max(0.05f, attack2Radius);
+            attack2ForwardOffset = Mathf.Max(0f, attack2ForwardOffset);
+            attack2PillarCount = Mathf.Max(1, attack2PillarCount);
+            attack2PillarSpacing = Mathf.Max(0.05f, attack2PillarSpacing);
+            attack2PillarDelayStep = Mathf.Max(0f, attack2PillarDelayStep);
+            attack2PillarBaseRadius = Mathf.Max(0.05f, attack2PillarBaseRadius);
+            attack2PillarRadiusStep = Mathf.Max(0f, attack2PillarRadiusStep);
+            attack2VfxDuration = Mathf.Max(0.1f, attack2VfxDuration);
+            attack2VfxDestroyDelay = Mathf.Max(0f, attack2VfxDestroyDelay);
+            attack3Damage = Mathf.Max(0f, attack3Damage);
+            attack3DamageRadius = Mathf.Max(0.05f, attack3DamageRadius);
+            attack3JumpDistance = Mathf.Max(0f, attack3JumpDistance);
+            attack3ImpactForwardOffset = Mathf.Max(0f, attack3ImpactForwardOffset);
+            attack3JumpStartDelay = Mathf.Max(0f, attack3JumpStartDelay);
+            attack3JumpDuration = Mathf.Max(0.05f, attack3JumpDuration);
+            attack3JumpArcHeight = Mathf.Max(0f, attack3JumpArcHeight);
+            attack3VfxDuration = Mathf.Max(0.1f, attack3VfxDuration);
+            attack3VfxDestroyDelay = Mathf.Max(0f, attack3VfxDestroyDelay);
         }
 
         private void Update()
@@ -253,7 +322,7 @@ namespace SeoulPlay
 
                 if (distance <= attackRange && Time.time >= cooldownEndsAt)
                 {
-                    StartAttack1();
+                    StartNextAutoAttack();
                 }
                 else if (Time.time < cooldownEndsAt)
                 {
@@ -309,6 +378,11 @@ namespace SeoulPlay
         {
             currentChaseSpeed = 0f;
             SetAnimatorMovement(false, 0f);
+            if (attack3JumpRoutine != null)
+            {
+                StopCoroutine(attack3JumpRoutine);
+                attack3JumpRoutine = null;
+            }
             DestroyAttack1RockClone();
             HideHeldRock();
         }
@@ -323,6 +397,9 @@ namespace SeoulPlay
             ChangeState(BossState.Attack);
             attackLockedUntil = Time.time + attackLockDuration;
             attack1RockFired = false;
+            attack2EarthBlastFired = true;
+            attack3SlamFired = true;
+            attack3ImpactVfxFired = true;
             DestroyAttack1RockClone();
             HideHeldRock();
             currentChaseSpeed = 0f;
@@ -332,6 +409,9 @@ namespace SeoulPlay
             {
                 animator.SetTrigger(Attack01Hash);
             }
+
+            useAttack2Next = true;
+            useAttack3Next = false;
         }
 
         public void StartAttack2()
@@ -343,6 +423,11 @@ namespace SeoulPlay
 
             ChangeState(BossState.Attack);
             attackLockedUntil = Time.time + attackLockDuration;
+            attack2EarthBlastFired = false;
+            attack3SlamFired = true;
+            attack3ImpactVfxFired = true;
+            DestroyAttack1RockClone();
+            HideHeldRock();
             currentChaseSpeed = 0f;
             SetAnimatorMovement(false, 0f);
 
@@ -350,6 +435,9 @@ namespace SeoulPlay
             {
                 animator.SetTrigger(Attack02Hash);
             }
+
+            useAttack2Next = false;
+            useAttack3Next = true;
         }
 
         public void StartAttack3()
@@ -361,13 +449,18 @@ namespace SeoulPlay
 
             ChangeState(BossState.Attack);
             attackLockedUntil = Time.time + attackLockDuration;
+            attack2EarthBlastFired = true;
+            attack3SlamFired = false;
+            attack3ImpactVfxFired = false;
+            DestroyAttack1RockClone();
+            HideHeldRock();
             currentChaseSpeed = 0f;
             SetAnimatorMovement(false, 0f);
+            PlayAttack3AnimationFromStart();
+            StartAttack3JumpMove();
 
-            if (animator != null && HasAnimatorParameter(Attack03Hash, AnimatorControllerParameterType.Trigger))
-            {
-                animator.SetTrigger(Attack03Hash);
-            }
+            useAttack2Next = false;
+            useAttack3Next = false;
         }
 
         public void FireAttack1Rock()
@@ -428,6 +521,88 @@ namespace SeoulPlay
         public void Attack01_End()
         {
             FinishAttack();
+        }
+
+        public void FireAttack2EarthBlast()
+        {
+            if (!CanAct() || attack2EarthBlastFired)
+            {
+                return;
+            }
+
+            attack2EarthBlastFired = true;
+
+            var forward = GetFlatForward();
+            var source = GetAttack2Source(forward);
+            var damagedTargets = new HashSet<SeoulPlayDamageable>();
+
+            SpawnAttack2SupportVfx(source, forward);
+            FireAttack2EarthBlastLine(source, forward, damagedTargets);
+
+            if (attack2SideAngle <= 0f)
+            {
+                return;
+            }
+
+            FireAttack2EarthBlastLine(source, Quaternion.AngleAxis(attack2SideAngle, Vector3.up) * forward, damagedTargets);
+            FireAttack2EarthBlastLine(source, Quaternion.AngleAxis(-attack2SideAngle, Vector3.up) * forward, damagedTargets);
+        }
+
+        public void FireAttack3JumpSlam()
+        {
+            FireAttack3ImpactVfx();
+            DamageAttack3Impact();
+        }
+
+        public void FireAttack3ImpactVfx()
+        {
+            if (!CanAct() || attack3ImpactVfxFired)
+            {
+                return;
+            }
+
+            attack3ImpactVfxFired = true;
+
+            var forward = GetFlatForward();
+            var impactPosition = GetAttack3ImpactPosition(forward);
+            SpawnAttack3ImpactVfx(impactPosition, forward);
+        }
+
+        public void DamageAttack3Impact()
+        {
+            if (!CanAct() || attack3SlamFired)
+            {
+                return;
+            }
+
+            attack3SlamFired = true;
+
+            var forward = GetFlatForward();
+            var impactPosition = GetAttack3ImpactPosition(forward);
+            DamageAttack3Impact(impactPosition, forward);
+        }
+
+        private void StartNextAutoAttack()
+        {
+            if (useAttack2InAutoAttack && useAttack2Next &&
+                animator != null && HasAnimatorParameter(Attack02Hash, AnimatorControllerParameterType.Trigger))
+            {
+                StartAttack2();
+                return;
+            }
+
+            if (useAttack3Next)
+            {
+                useAttack3Next = false;
+                if (useAttack3InAutoAttack &&
+                    animator != null && HasAnimatorParameter(Attack03Hash, AnimatorControllerParameterType.Trigger))
+                {
+                    StartAttack3();
+                    return;
+                }
+            }
+
+            StartAttack1();
         }
 
         public void SetTarget(Transform value)
@@ -718,6 +893,371 @@ namespace SeoulPlay
             return Quaternion.LookRotation(direction, Vector3.up);
         }
 
+        private Vector3 GetFlatForward()
+        {
+            var forward = transform.forward;
+            forward.y = 0f;
+            return forward.sqrMagnitude > 0.001f ? forward.normalized : Vector3.forward;
+        }
+
+        private Vector3 GetAttack2Source(Vector3 forward)
+        {
+            var origin = attack2Origin != null ? attack2Origin.position : transform.position;
+            return origin + forward * attack2ForwardOffset;
+        }
+
+        private Vector3 GetAttack3ImpactPosition(Vector3 forward)
+        {
+            forward.y = 0f;
+            if (forward.sqrMagnitude <= 0.001f)
+            {
+                forward = GetFlatForward();
+            }
+
+            return transform.position + forward.normalized * attack3ImpactForwardOffset;
+        }
+
+        private void StartAttack3JumpMove()
+        {
+            if (attack3JumpRoutine != null)
+            {
+                StopCoroutine(attack3JumpRoutine);
+                attack3JumpRoutine = null;
+            }
+
+            if (attack3JumpDistance <= 0f)
+            {
+                return;
+            }
+
+            attack3JumpRoutine = StartCoroutine(PlayAttack3JumpMove(GetFlatForward()));
+        }
+
+        private void PlayAttack3AnimationFromStart()
+        {
+            if (animator == null || animator.runtimeAnimatorController == null)
+            {
+                return;
+            }
+
+            if (HasAnimatorParameter(Attack01Hash, AnimatorControllerParameterType.Trigger))
+            {
+                animator.ResetTrigger(Attack01Hash);
+            }
+
+            if (HasAnimatorParameter(Attack02Hash, AnimatorControllerParameterType.Trigger))
+            {
+                animator.ResetTrigger(Attack02Hash);
+            }
+
+            if (HasAnimatorParameter(Attack03Hash, AnimatorControllerParameterType.Trigger))
+            {
+                animator.ResetTrigger(Attack03Hash);
+            }
+
+            if (animator.HasState(0, Attack03StateHash))
+            {
+                animator.Play(Attack03StateHash, 0, 0f);
+                animator.Update(0f);
+                return;
+            }
+
+            if (HasAnimatorParameter(Attack03Hash, AnimatorControllerParameterType.Trigger))
+            {
+                animator.SetTrigger(Attack03Hash);
+            }
+        }
+
+        private IEnumerator PlayAttack3JumpMove(Vector3 forward)
+        {
+            forward.y = 0f;
+            if (forward.sqrMagnitude <= 0.001f)
+            {
+                forward = GetFlatForward();
+            }
+
+            forward.Normalize();
+            var start = transform.position;
+            var end = start + forward * attack3JumpDistance;
+            var duration = Mathf.Max(0.05f, attack3JumpDuration);
+            if (attack3JumpStartDelay > 0f)
+            {
+                yield return new WaitForSeconds(attack3JumpStartDelay);
+            }
+
+            var elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                if (!CanAct())
+                {
+                    attack3JumpRoutine = null;
+                    yield break;
+                }
+
+                elapsed += Time.deltaTime;
+                var t = Mathf.Clamp01(elapsed / duration);
+                var position = Vector3.Lerp(start, end, Mathf.SmoothStep(0f, 1f, t));
+                position.y += Mathf.Sin(t * Mathf.PI) * attack3JumpArcHeight;
+                transform.position = position;
+                yield return null;
+            }
+
+            transform.position = end;
+            attack3JumpRoutine = null;
+        }
+
+        private void FireAttack2EarthBlastLine(
+            Vector3 source,
+            Vector3 direction,
+            HashSet<SeoulPlayDamageable> damagedTargets)
+        {
+            direction.y = 0f;
+            if (direction.sqrMagnitude <= 0.001f)
+            {
+                direction = GetFlatForward();
+            }
+
+            direction.Normalize();
+            StartCoroutine(PlayAttack2PillarLine(source, direction, damagedTargets));
+        }
+
+        private void SpawnAttack2SupportVfx(Vector3 source, Vector3 direction)
+        {
+            if (attack2VfxPrefab == null)
+            {
+                return;
+            }
+
+            var rotation = direction.sqrMagnitude > 0.001f ? Quaternion.LookRotation(direction, Vector3.up) : transform.rotation;
+            var vfxObject = Instantiate(attack2VfxPrefab, source, rotation);
+            var embeddedPillarUnit = FindChildTransform(vfxObject.transform, EarthBlastPillarUnitName);
+            if (embeddedPillarUnit != null)
+            {
+                embeddedPillarUnit.gameObject.SetActive(false);
+            }
+
+            foreach (var director in vfxObject.GetComponentsInChildren<PlayableDirector>(true))
+            {
+                director.Stop();
+                director.enabled = false;
+            }
+
+            foreach (var animatorComponent in vfxObject.GetComponentsInChildren<Animator>(true))
+            {
+                animatorComponent.enabled = false;
+            }
+
+            foreach (var meshRenderer in vfxObject.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                meshRenderer.enabled = false;
+            }
+
+            foreach (var particleSystem in vfxObject.GetComponentsInChildren<ParticleSystem>(true))
+            {
+                particleSystem.gameObject.SetActive(true);
+                particleSystem.Clear(true);
+                particleSystem.Play(true);
+            }
+
+            Destroy(vfxObject, attack2VfxDuration + attack2VfxDestroyDelay);
+        }
+
+        private void SpawnAttack3ImpactVfx(Vector3 position, Vector3 direction)
+        {
+            var prefab = attack3ImpactVfxPrefab != null ? attack3ImpactVfxPrefab : attack2PillarVfxPrefab != null ? attack2PillarVfxPrefab : attack2VfxPrefab;
+            if (prefab == null)
+            {
+                return;
+            }
+
+            var rotation = direction.sqrMagnitude > 0.001f ? Quaternion.LookRotation(direction, Vector3.up) : transform.rotation;
+            var vfxObject = Instantiate(prefab, position, rotation);
+            vfxObject.transform.localScale = Vector3.one * attack3DamageRadius;
+
+            if (!attack3ParticlesOnly)
+            {
+                var baseVfx = vfxObject.GetComponent<BaseVfx>();
+                if (baseVfx != null)
+                {
+                    baseVfx.Play(new VfxData(position, position + direction, attack3VfxDuration, attack3DamageRadius));
+                    return;
+                }
+            }
+
+            foreach (var director in vfxObject.GetComponentsInChildren<PlayableDirector>(true))
+            {
+                director.Stop();
+                director.enabled = false;
+            }
+
+            foreach (var animatorComponent in vfxObject.GetComponentsInChildren<Animator>(true))
+            {
+                animatorComponent.enabled = false;
+            }
+
+            foreach (var meshRenderer in vfxObject.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                meshRenderer.enabled = false;
+            }
+
+            foreach (var particleSystem in vfxObject.GetComponentsInChildren<ParticleSystem>(true))
+            {
+                particleSystem.gameObject.SetActive(true);
+                particleSystem.Clear(true);
+                particleSystem.Play(true);
+            }
+
+            Destroy(vfxObject, attack3VfxDuration + attack3VfxDestroyDelay);
+        }
+
+        private void DamageAttack3Impact(Vector3 position, Vector3 direction)
+        {
+            if (attack3Damage <= 0f)
+            {
+                return;
+            }
+
+            var query = attack3HitTriggers ? QueryTriggerInteraction.Collide : QueryTriggerInteraction.Ignore;
+            var hits = Physics.OverlapSphere(position, attack3DamageRadius, attack3HitMask, query);
+            var damagedTargets = new HashSet<SeoulPlayDamageable>();
+            foreach (var hit in hits)
+            {
+                var targetDamageable = hit.GetComponentInParent<SeoulPlayDamageable>();
+                if (targetDamageable == null || targetDamageable == damageable || !damagedTargets.Add(targetDamageable))
+                {
+                    continue;
+                }
+
+                targetDamageable.TakeDamage(attack3Damage, direction, transform);
+            }
+
+            DamageAttack3TargetFallback(position, direction, damagedTargets);
+        }
+
+        private void DamageAttack3TargetFallback(
+            Vector3 position,
+            Vector3 direction,
+            HashSet<SeoulPlayDamageable> damagedTargets)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            var targetDamageable = target.GetComponentInParent<SeoulPlayDamageable>();
+            if (targetDamageable == null || targetDamageable == damageable || !damagedTargets.Add(targetDamageable))
+            {
+                return;
+            }
+
+            var offset = targetDamageable.transform.position - position;
+            offset.y = 0f;
+            if (offset.sqrMagnitude > attack3DamageRadius * attack3DamageRadius)
+            {
+                return;
+            }
+
+            targetDamageable.TakeDamage(attack3Damage, direction, transform);
+        }
+
+        private IEnumerator PlayAttack2PillarLine(
+            Vector3 source,
+            Vector3 direction,
+            HashSet<SeoulPlayDamageable> damagedTargets)
+        {
+            for (var index = 0; index < attack2PillarCount; index++)
+            {
+                if (index > 0 && attack2PillarDelayStep > 0f)
+                {
+                    yield return new WaitForSeconds(attack2PillarDelayStep);
+                }
+
+                if (!CanAct())
+                {
+                    yield break;
+                }
+
+                var radius = attack2PillarBaseRadius + attack2PillarRadiusStep * index;
+                var position = source + direction * attack2PillarSpacing * index;
+                SpawnAttack2PillarVfx(position, direction, radius);
+                DamageAttack2Pillar(position, direction, radius, damagedTargets);
+            }
+        }
+
+        private void SpawnAttack2PillarVfx(Vector3 position, Vector3 direction, float radius)
+        {
+            var prefab = attack2PillarVfxPrefab != null ? attack2PillarVfxPrefab : attack2VfxPrefab;
+            if (prefab == null)
+            {
+                return;
+            }
+
+            var rotation = direction.sqrMagnitude > 0.001f ? Quaternion.LookRotation(direction, Vector3.up) : transform.rotation;
+            var vfxObject = Instantiate(prefab, position, rotation);
+            vfxObject.transform.localScale = Vector3.one * radius;
+
+            if (!attack2ParticlesOnly)
+            {
+                var baseVfx = vfxObject.GetComponent<BaseVfx>();
+                if (baseVfx != null)
+                {
+                    baseVfx.Play(new VfxData(position, position + direction, attack2VfxDuration, radius));
+                    return;
+                }
+            }
+
+            foreach (var director in vfxObject.GetComponentsInChildren<PlayableDirector>(true))
+            {
+                director.Stop();
+                director.enabled = false;
+            }
+
+            foreach (var animatorComponent in vfxObject.GetComponentsInChildren<Animator>(true))
+            {
+                animatorComponent.enabled = false;
+            }
+
+            foreach (var meshRenderer in vfxObject.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                meshRenderer.enabled = false;
+            }
+
+            foreach (var particleSystem in vfxObject.GetComponentsInChildren<ParticleSystem>(true))
+            {
+                particleSystem.gameObject.SetActive(true);
+                particleSystem.Clear(true);
+                particleSystem.Play(true);
+            }
+
+            Destroy(vfxObject, attack2VfxDuration + attack2VfxDestroyDelay);
+        }
+
+        private void DamageAttack2Pillar(
+            Vector3 position,
+            Vector3 direction,
+            float radius,
+            HashSet<SeoulPlayDamageable> damagedTargets)
+        {
+            if (attack2Damage <= 0f)
+            {
+                return;
+            }
+
+            var query = attack2HitTriggers ? QueryTriggerInteraction.Collide : QueryTriggerInteraction.Ignore;
+            var hits = Physics.OverlapSphere(position, radius, attack2HitMask, query);
+            foreach (var hit in hits)
+            {
+                var targetDamageable = hit.GetComponentInParent<SeoulPlayDamageable>();
+                if (targetDamageable == null || targetDamageable == damageable || !damagedTargets.Add(targetDamageable))
+                {
+                    continue;
+                }
+
+                targetDamageable.TakeDamage(attack2Damage, direction, transform);
+            }
+        }
+
         private float GetHorizontalForwardAngleTo(Vector3 targetDirection)
         {
             var forward = transform.forward;
@@ -863,6 +1403,30 @@ namespace SeoulPlay
             return false;
         }
 
+        private void DrawAttack2GizmoLine(Vector3 source, Vector3 direction)
+        {
+            direction.y = 0f;
+            if (direction.sqrMagnitude <= 0.001f)
+            {
+                return;
+            }
+
+            direction.Normalize();
+            var previous = source;
+            for (var index = 0; index < attack2PillarCount; index++)
+            {
+                var radius = attack2PillarBaseRadius + attack2PillarRadiusStep * index;
+                var position = source + direction * attack2PillarSpacing * index;
+                if (index > 0)
+                {
+                    Gizmos.DrawLine(previous, position);
+                }
+
+                Gizmos.DrawWireSphere(position, radius);
+                previous = position;
+            }
+        }
+
         private void OnDrawGizmosSelected()
         {
             Gizmos.color = new Color(0.45f, 0.65f, 1f, 0.3f);
@@ -879,6 +1443,23 @@ namespace SeoulPlay
             Gizmos.color = Color.yellow;
             Gizmos.DrawSphere(spawnPosition, 0.15f);
             Gizmos.DrawRay(spawnPosition, transform.forward * 1.5f);
+
+            var attack2Forward = GetFlatForward();
+            var attack2Source = GetAttack2Source(attack2Forward);
+            Gizmos.color = new Color(0.55f, 0.35f, 0.1f, 0.75f);
+            DrawAttack2GizmoLine(attack2Source, attack2Forward);
+            if (attack2SideAngle > 0f)
+            {
+                DrawAttack2GizmoLine(attack2Source, Quaternion.AngleAxis(attack2SideAngle, Vector3.up) * attack2Forward);
+                DrawAttack2GizmoLine(attack2Source, Quaternion.AngleAxis(-attack2SideAngle, Vector3.up) * attack2Forward);
+            }
+
+            var attack3Forward = GetFlatForward();
+            var attack3Landing = transform.position + attack3Forward * attack3JumpDistance;
+            var attack3Impact = attack3Landing + attack3Forward * attack3ImpactForwardOffset;
+            Gizmos.color = new Color(1f, 0.15f, 0.05f, 0.75f);
+            Gizmos.DrawLine(transform.position, attack3Landing);
+            Gizmos.DrawWireSphere(attack3Impact, attack3DamageRadius);
 
             if (target == null)
             {
