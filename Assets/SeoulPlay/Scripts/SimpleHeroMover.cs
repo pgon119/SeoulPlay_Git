@@ -20,6 +20,7 @@ namespace SeoulPlay
         private static readonly int RollRightStateHash = Animator.StringToHash("Base Layer.Roll Right");
         private static readonly int LocomotionStateHash = Animator.StringToHash("Base Layer.Locomotion");
         private const string UpperBodyFireLayerName = "Upper Body Fire";
+        private const string SceneCameraRigName = "Cinemachine";
 
         [Header("References")]
         [SerializeField] private Animator animator;
@@ -634,15 +635,15 @@ namespace SeoulPlay
             EnsureCameraTarget();
             UpdateCameraTarget();
 
-            if (hasSceneCameraStartPose)
-            {
-                UpdateScenePoseCamera();
-                return;
-            }
-
             if (useCinemachineCamera && cinemachineReady)
             {
                 UpdateCinemachineCamera();
+                return;
+            }
+
+            if (hasSceneCameraStartPose)
+            {
+                UpdateScenePoseCamera();
                 return;
             }
 
@@ -691,7 +692,9 @@ namespace SeoulPlay
             }
 
             cameraTarget = GetOrCreateChildTransform("CameraTarget", Vector3.up * cameraHeight);
-            cameraTarget.rotation = Quaternion.Euler(0f, cameraYaw, 0f);
+            cameraTarget.rotation = useCinemachineCamera && cinemachineReady
+                ? GetSceneRelativeCameraRotation(cameraPitch, cameraYaw)
+                : Quaternion.Euler(0f, cameraYaw, 0f);
             smoothedCameraTargetPosition = cameraTarget.position;
             hasSmoothedCameraTargetPosition = true;
         }
@@ -847,6 +850,7 @@ namespace SeoulPlay
             {
                 brain = followCamera.gameObject.AddComponent<CinemachineBrain>();
             }
+            brain.enabled = true;
             brain.m_DefaultBlend.m_Style = CinemachineBlendDefinition.Style.Cut;
             brain.m_DefaultBlend.m_Time = 0f;
 
@@ -885,62 +889,104 @@ namespace SeoulPlay
         {
             if (virtualCamera == null)
             {
-                var cameraObject = GetOrCreateChildTransform(cameraName, Vector3.zero).gameObject;
+                var cameraObject = GetOrCreateSceneCameraObject(cameraName);
                 virtualCamera = cameraObject.GetComponent<CinemachineVirtualCamera>();
                 if (virtualCamera == null)
                 {
                     virtualCamera = cameraObject.AddComponent<CinemachineVirtualCamera>();
                 }
             }
+            else
+            {
+                MoveVirtualCameraToSceneRig(virtualCamera, cameraName);
+            }
 
             virtualCamera.Priority = priority;
             virtualCamera.Follow = followTarget;
-            virtualCamera.LookAt = lookAtTarget;
+            virtualCamera.LookAt = null;
             virtualCamera.m_Lens.FieldOfView = followCamera.fieldOfView;
             virtualCamera.transform.rotation = GetSceneRelativeCameraRotation(cameraPitch, cameraYaw);
             virtualCamera.PreviousStateIsValid = false;
 
-            var transposer = virtualCamera.GetCinemachineComponent<CinemachineTransposer>();
-            if (transposer == null)
+            var thirdPersonFollow = virtualCamera.GetCinemachineComponent<Cinemachine3rdPersonFollow>();
+            if (thirdPersonFollow == null)
             {
-                transposer = virtualCamera.AddCinemachineComponent<CinemachineTransposer>();
+                thirdPersonFollow = virtualCamera.AddCinemachineComponent<Cinemachine3rdPersonFollow>();
             }
 
-            transposer.m_BindingMode = CinemachineTransposer.BindingMode.LockToTargetWithWorldUp;
-            transposer.m_FollowOffset = cinemachineFollowOffset;
-            transposer.m_XDamping = damping;
-            transposer.m_YDamping = damping;
-            transposer.m_ZDamping = damping;
-
-            if (lookAtTarget != null)
+            if (thirdPersonFollow != null)
             {
-                var composer = virtualCamera.GetCinemachineComponent<CinemachineComposer>();
-                if (composer == null)
+                var distance = Mathf.Max(0.01f, -cinemachineFollowOffset.z);
+                var shoulderHeight = followTarget == cameraTarget ? 0f : cinemachineFollowOffset.y;
+                thirdPersonFollow.Damping = new Vector3(damping, damping, damping);
+                thirdPersonFollow.ShoulderOffset = new Vector3(Mathf.Abs(cinemachineFollowOffset.x), shoulderHeight, 0f);
+                thirdPersonFollow.VerticalArmLength = 0f;
+                thirdPersonFollow.CameraSide = cinemachineFollowOffset.x < 0f ? 0f : 1f;
+                thirdPersonFollow.CameraDistance = distance;
+                cinemachineCameraDistance = distance;
+                cinemachineCameraHeight = cinemachineFollowOffset.y;
+            }
+
+            var composer = virtualCamera.GetCinemachineComponent<CinemachineComposer>();
+            if (composer != null)
+            {
+                if (Application.isPlaying)
                 {
-                    composer = virtualCamera.AddCinemachineComponent<CinemachineComposer>();
+                    Destroy(composer);
                 }
-
-                composer.m_TrackedObjectOffset = Vector3.zero;
-                composer.m_HorizontalDamping = damping;
-                composer.m_VerticalDamping = damping;
-            }
-            else
-            {
-                var composer = virtualCamera.GetCinemachineComponent<CinemachineComposer>();
-                if (composer != null)
+                else
                 {
-                    if (Application.isPlaying)
-                    {
-                        Destroy(composer);
-                    }
-                    else
-                    {
-                        DestroyImmediate(composer);
-                    }
+                    DestroyImmediate(composer);
                 }
             }
 
             return virtualCamera;
+        }
+
+        private GameObject GetOrCreateSceneCameraObject(string cameraName)
+        {
+            var rig = GetOrCreateSceneCameraRig();
+            var existing = rig.Find(cameraName);
+            if (existing != null)
+            {
+                return existing.gameObject;
+            }
+
+            var cameraObject = new GameObject(cameraName);
+            cameraObject.transform.SetParent(rig, false);
+            cameraObject.transform.localPosition = Vector3.zero;
+            cameraObject.transform.localRotation = Quaternion.identity;
+            cameraObject.transform.localScale = Vector3.one;
+            return cameraObject;
+        }
+
+        private void MoveVirtualCameraToSceneRig(CinemachineVirtualCamera virtualCamera, string cameraName)
+        {
+            if (virtualCamera == null)
+            {
+                return;
+            }
+
+            var rig = GetOrCreateSceneCameraRig();
+            if (virtualCamera.transform.parent == rig)
+            {
+                return;
+            }
+
+            virtualCamera.gameObject.name = cameraName;
+            virtualCamera.transform.SetParent(rig, true);
+        }
+
+        private Transform GetOrCreateSceneCameraRig()
+        {
+            var rigObject = GameObject.Find(SceneCameraRigName);
+            if (rigObject == null)
+            {
+                rigObject = new GameObject(SceneCameraRigName);
+                rigObject.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            }
+
+            return rigObject.transform;
         }
 
         private void ResetCameraState()
@@ -949,7 +995,9 @@ namespace SeoulPlay
             {
                 var targetPosition = transform.position + Vector3.up * cameraHeight;
                 cameraTarget.position = targetPosition;
-                cameraTarget.rotation = Quaternion.Euler(0f, cameraYaw, 0f);
+                cameraTarget.rotation = useCinemachineCamera && cinemachineReady
+                    ? GetSceneRelativeCameraRotation(cameraPitch, cameraYaw)
+                    : Quaternion.Euler(0f, cameraYaw, 0f);
                 smoothedCameraTargetPosition = targetPosition;
                 hasSmoothedCameraTargetPosition = true;
             }
@@ -959,7 +1007,9 @@ namespace SeoulPlay
                 rollCameraTarget.position = cameraTarget != null
                     ? cameraTarget.position
                     : transform.position + Vector3.up * rollCameraGroundHeight;
-                rollCameraTarget.rotation = Quaternion.Euler(0f, cameraYaw, 0f);
+                rollCameraTarget.rotation = useCinemachineCamera && cinemachineReady
+                    ? GetSceneRelativeCameraRotation(GetActiveCameraPitch(), GetActiveCameraYaw())
+                    : Quaternion.Euler(0f, cameraYaw, 0f);
             }
 
             var cameraRotation = hasSceneCameraStartPose
@@ -1107,7 +1157,9 @@ namespace SeoulPlay
             {
                 rollCameraTarget.position = cameraTarget.position;
             }
-            rollCameraTarget.rotation = Quaternion.Euler(0f, activeYaw, 0f);
+            rollCameraTarget.rotation = useCinemachineCamera && cinemachineReady
+                ? GetSceneRelativeCameraRotation(GetActiveCameraPitch(), activeYaw)
+                : Quaternion.Euler(0f, activeYaw, 0f);
         }
 
         private bool IsRollCameraFollowActive()
