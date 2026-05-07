@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using PixPlays.ElementalVFX;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.Playables;
 
 namespace SeoulPlay
@@ -22,9 +23,30 @@ namespace SeoulPlay
         {
             Idle,
             Chase,
+            AttackSelect,
             Attack,
             Cooldown,
             Dead
+        }
+
+        public enum BossAttackType
+        {
+            None,
+            Attack1RockThrow,
+            Attack2EarthBlast,
+            Attack3JumpSlam
+        }
+
+        private struct AttackCandidate
+        {
+            public BossAttackType AttackType;
+            public float Weight;
+
+            public AttackCandidate(BossAttackType attackType, float weight)
+            {
+                AttackType = attackType;
+                Weight = weight;
+            }
         }
 
         [Header("References")]
@@ -47,10 +69,29 @@ namespace SeoulPlay
         [SerializeField, Min(0f), Tooltip("보스가 플레이어에게 접근하다가 멈추는 거리입니다. 현재 공격 로직상 실제 투척 거리는 이 값에 가까워집니다.")]
         private float stopDistance = 10f;
 
-        [Header("Attack 1 - Rock Throw")]
-        [SerializeField, Min(0.1f), Tooltip("공격이 끝난 뒤 다음 공격을 시작하기까지 기다리는 시간입니다. 값이 작을수록 보스가 더 자주 공격합니다.")]
-        private float attackCooldown = 2.5f;
+        [SerializeField, Min(0f)] private float closeRangeDistance = 5f;
+        [SerializeField, Min(0f)] private float midRangeDistance = 8f;
+        [SerializeField, Min(0f)] private float longRangeDistance = 12f;
 
+        [Header("AI Cooldowns")]
+        [SerializeField, Min(0.1f), FormerlySerializedAs("attackCooldown")]
+        private float globalAttackCooldown = 2.5f;
+
+        [SerializeField, Min(0.1f)] private float attack1Cooldown = 2f;
+        [SerializeField, Min(0.1f)] private float attack2Cooldown = 4f;
+        [SerializeField, Min(0.1f)] private float attack3Cooldown = 7f;
+        [SerializeField, Range(0f, 1f)] private float repeatAttackWeightMultiplier = 0.3f;
+
+        [Header("AI Weights")]
+        [SerializeField, Min(0f)] private float longRangeAttack1Weight = 80f;
+        [SerializeField, Min(0f)] private float longRangeAttack3Weight = 20f;
+        [SerializeField, Min(0f)] private float midRangeAttack2Weight = 70f;
+        [SerializeField, Min(0f)] private float midRangeAttack1Weight = 30f;
+        [SerializeField, Min(0f)] private float closeRangeAttack3Weight = 70f;
+        [SerializeField, Min(0f)] private float closeRangeAttack2Weight = 20f;
+        [SerializeField, Min(0f)] private float closeRangeAttack1Weight = 10f;
+
+        [Header("Attack 1 - Rock Throw")]
         [SerializeField, Min(0.1f), Tooltip("공격 애니메이션 중 보스가 다른 행동으로 넘어가지 못하게 잠그는 시간입니다. 공격 모션 길이에 맞춰 조정합니다.")]
         private float attackLockDuration = 2.2f;
 
@@ -161,12 +202,18 @@ namespace SeoulPlay
         [SerializeField] private BossState currentState = BossState.Idle;
         private float attackLockedUntil;
         private float cooldownEndsAt;
+        private float attack1ReadyAt;
+        private float attack2ReadyAt;
+        private float attack3ReadyAt;
         private float currentChaseSpeed;
+        private BossAttackType currentAttackType = BossAttackType.None;
+        private BossAttackType lastAttackType = BossAttackType.None;
+        private Vector3 lockedAttackDirection = Vector3.forward;
+        private Vector3 lockedTargetPosition;
+        private bool hasLockedAttackTarget;
         private bool attack1RockFired;
         private GameObject attack1RockClone;
-        private bool useAttack2Next;
         private bool attack2EarthBlastFired;
-        private bool useAttack3Next;
         private bool attack3SlamFired;
         private bool attack3ImpactVfxFired;
         private Coroutine attack3JumpRoutine;
@@ -212,7 +259,13 @@ namespace SeoulPlay
             detectionRange = Mathf.Max(0f, detectionRange);
             attackRange = Mathf.Clamp(attackRange, 0f, detectionRange);
             stopDistance = Mathf.Clamp(stopDistance, 0f, attackRange);
-            attackCooldown = Mathf.Max(0.1f, attackCooldown);
+            closeRangeDistance = Mathf.Max(0f, closeRangeDistance);
+            midRangeDistance = Mathf.Max(closeRangeDistance, midRangeDistance);
+            longRangeDistance = Mathf.Max(midRangeDistance, longRangeDistance);
+            globalAttackCooldown = Mathf.Max(0.1f, globalAttackCooldown);
+            attack1Cooldown = Mathf.Max(0.1f, attack1Cooldown);
+            attack2Cooldown = Mathf.Max(0.1f, attack2Cooldown);
+            attack3Cooldown = Mathf.Max(0.1f, attack3Cooldown);
             attackLockDuration = Mathf.Max(0.1f, attackLockDuration);
             chaseMoveSpeed = Mathf.Max(0f, chaseMoveSpeed);
             chaseAcceleration = Mathf.Max(0f, chaseAcceleration);
@@ -262,6 +315,9 @@ namespace SeoulPlay
                 case BossState.Chase:
                     UpdateChaseState();
                     break;
+                case BossState.AttackSelect:
+                    UpdateAttackSelectState();
+                    break;
                 case BossState.Attack:
                     UpdateAttackState();
                     break;
@@ -277,6 +333,8 @@ namespace SeoulPlay
         private void UpdateIdleState()
         {
             currentChaseSpeed = 0f;
+            currentAttackType = BossAttackType.None;
+            hasLockedAttackTarget = false;
             SetAnimatorMovement(false, 0f);
 
             if (target == null)
@@ -309,7 +367,7 @@ namespace SeoulPlay
                 return;
             }
 
-            if (distance <= GetStopDistance())
+            if (distance <= GetAttackSelectRange())
             {
                 currentChaseSpeed = 0f;
                 var isFacingTarget = RotateTowardTarget(attackFacingAngle);
@@ -320,9 +378,9 @@ namespace SeoulPlay
                     return;
                 }
 
-                if (distance <= attackRange && Time.time >= cooldownEndsAt)
+                if (Time.time >= cooldownEndsAt)
                 {
-                    StartNextAutoAttack();
+                    ChangeState(BossState.AttackSelect);
                 }
                 else if (Time.time < cooldownEndsAt)
                 {
@@ -335,6 +393,58 @@ namespace SeoulPlay
             ChaseTarget();
         }
 
+        private void UpdateAttackSelectState()
+        {
+            currentChaseSpeed = 0f;
+            SetAnimatorMovement(false, 0f);
+
+            if (target == null)
+            {
+                ChangeState(BossState.Idle);
+                return;
+            }
+
+            var distance = GetFlatDistanceToTarget();
+            if (distance > detectionRange)
+            {
+                ChangeState(BossState.Idle);
+                return;
+            }
+
+            if (Time.time < cooldownEndsAt)
+            {
+                ChangeState(BossState.Cooldown);
+                return;
+            }
+
+            if (distance > GetAttackSelectRange())
+            {
+                ChangeState(BossState.Chase);
+                return;
+            }
+
+            if (!RotateTowardTarget(attackFacingAngle))
+            {
+                return;
+            }
+
+            if (!TrySelectAutoAttack(distance, out var selectedAttack))
+            {
+                var nextReadyAt = GetNextReadyTime();
+                if (!float.IsPositiveInfinity(nextReadyAt) && nextReadyAt > Time.time)
+                {
+                    cooldownEndsAt = Mathf.Max(cooldownEndsAt, nextReadyAt);
+                    ChangeState(BossState.Cooldown);
+                    return;
+                }
+
+                ChangeState(BossState.Chase);
+                return;
+            }
+
+            StartSelectedAttack(selectedAttack);
+        }
+
         private void UpdateAttackState()
         {
             currentChaseSpeed = 0f;
@@ -342,7 +452,7 @@ namespace SeoulPlay
 
             if (Time.time >= attackLockedUntil)
             {
-                cooldownEndsAt = Time.time + attackCooldown;
+                cooldownEndsAt = Time.time + globalAttackCooldown;
                 ChangeState(BossState.Cooldown);
             }
         }
@@ -371,12 +481,14 @@ namespace SeoulPlay
                 return;
             }
 
-            ChangeState(BossState.Chase);
+            ChangeState(GetFlatDistanceToTarget() <= GetAttackSelectRange() ? BossState.AttackSelect : BossState.Chase);
         }
 
         private void UpdateDeadState()
         {
             currentChaseSpeed = 0f;
+            currentAttackType = BossAttackType.None;
+            hasLockedAttackTarget = false;
             SetAnimatorMovement(false, 0f);
             if (attack3JumpRoutine != null)
             {
@@ -394,6 +506,7 @@ namespace SeoulPlay
                 return;
             }
 
+            BeginAttack(BossAttackType.Attack1RockThrow);
             ChangeState(BossState.Attack);
             attackLockedUntil = Time.time + attackLockDuration;
             attack1RockFired = false;
@@ -410,8 +523,6 @@ namespace SeoulPlay
                 animator.SetTrigger(Attack01Hash);
             }
 
-            useAttack2Next = true;
-            useAttack3Next = false;
         }
 
         public void StartAttack2()
@@ -421,6 +532,7 @@ namespace SeoulPlay
                 return;
             }
 
+            BeginAttack(BossAttackType.Attack2EarthBlast);
             ChangeState(BossState.Attack);
             attackLockedUntil = Time.time + attackLockDuration;
             attack2EarthBlastFired = false;
@@ -436,8 +548,6 @@ namespace SeoulPlay
                 animator.SetTrigger(Attack02Hash);
             }
 
-            useAttack2Next = false;
-            useAttack3Next = true;
         }
 
         public void StartAttack3()
@@ -447,6 +557,7 @@ namespace SeoulPlay
                 return;
             }
 
+            BeginAttack(BossAttackType.Attack3JumpSlam);
             ChangeState(BossState.Attack);
             attackLockedUntil = Time.time + attackLockDuration;
             attack2EarthBlastFired = true;
@@ -459,8 +570,6 @@ namespace SeoulPlay
             PlayAttack3AnimationFromStart();
             StartAttack3JumpMove();
 
-            useAttack2Next = false;
-            useAttack3Next = false;
         }
 
         public void FireAttack1Rock()
@@ -532,7 +641,7 @@ namespace SeoulPlay
 
             attack2EarthBlastFired = true;
 
-            var forward = GetFlatForward();
+            var forward = GetLockedAttackDirection();
             var source = GetAttack2Source(forward);
             var damagedTargets = new HashSet<SeoulPlayDamageable>();
 
@@ -563,7 +672,7 @@ namespace SeoulPlay
 
             attack3ImpactVfxFired = true;
 
-            var forward = GetFlatForward();
+            var forward = GetLockedAttackDirection();
             var impactPosition = GetAttack3ImpactPosition(forward);
             SpawnAttack3ImpactVfx(impactPosition, forward);
         }
@@ -577,32 +686,91 @@ namespace SeoulPlay
 
             attack3SlamFired = true;
 
-            var forward = GetFlatForward();
+            var forward = GetLockedAttackDirection();
             var impactPosition = GetAttack3ImpactPosition(forward);
             DamageAttack3Impact(impactPosition, forward);
         }
 
-        private void StartNextAutoAttack()
+        private bool TrySelectAutoAttack(float distance, out BossAttackType selectedAttack)
         {
-            if (useAttack2InAutoAttack && useAttack2Next &&
-                animator != null && HasAnimatorParameter(Attack02Hash, AnimatorControllerParameterType.Trigger))
+            var candidates = new List<AttackCandidate>(3);
+            if (distance >= longRangeDistance)
             {
-                StartAttack2();
+                AddAttackCandidate(candidates, BossAttackType.Attack1RockThrow, longRangeAttack1Weight);
+                AddAttackCandidate(candidates, BossAttackType.Attack3JumpSlam, longRangeAttack3Weight);
+            }
+            else if (distance >= midRangeDistance)
+            {
+                AddAttackCandidate(candidates, BossAttackType.Attack2EarthBlast, midRangeAttack2Weight);
+                AddAttackCandidate(candidates, BossAttackType.Attack1RockThrow, midRangeAttack1Weight);
+            }
+            else
+            {
+                AddAttackCandidate(candidates, BossAttackType.Attack3JumpSlam, closeRangeAttack3Weight);
+                AddAttackCandidate(candidates, BossAttackType.Attack2EarthBlast, closeRangeAttack2Weight);
+                AddAttackCandidate(candidates, BossAttackType.Attack1RockThrow, closeRangeAttack1Weight);
+            }
+
+            selectedAttack = PickWeightedAttack(candidates);
+            return selectedAttack != BossAttackType.None;
+        }
+
+        private void AddAttackCandidate(List<AttackCandidate> candidates, BossAttackType attackType, float baseWeight)
+        {
+            if (baseWeight <= 0f || !IsAttackReady(attackType) || !IsAttackAnimationAvailable(attackType))
+            {
                 return;
             }
 
-            if (useAttack3Next)
+            var weight = attackType == lastAttackType ? baseWeight * repeatAttackWeightMultiplier : baseWeight;
+            if (weight <= 0f)
             {
-                useAttack3Next = false;
-                if (useAttack3InAutoAttack &&
-                    animator != null && HasAnimatorParameter(Attack03Hash, AnimatorControllerParameterType.Trigger))
+                return;
+            }
+
+            candidates.Add(new AttackCandidate(attackType, weight));
+        }
+
+        private BossAttackType PickWeightedAttack(List<AttackCandidate> candidates)
+        {
+            var totalWeight = 0f;
+            for (var index = 0; index < candidates.Count; index++)
+            {
+                totalWeight += candidates[index].Weight;
+            }
+
+            if (totalWeight <= 0f)
+            {
+                return BossAttackType.None;
+            }
+
+            var roll = Random.Range(0f, totalWeight);
+            for (var index = 0; index < candidates.Count; index++)
+            {
+                roll -= candidates[index].Weight;
+                if (roll <= 0f)
                 {
-                    StartAttack3();
-                    return;
+                    return candidates[index].AttackType;
                 }
             }
 
-            StartAttack1();
+            return candidates[candidates.Count - 1].AttackType;
+        }
+
+        private void StartSelectedAttack(BossAttackType selectedAttack)
+        {
+            switch (selectedAttack)
+            {
+                case BossAttackType.Attack1RockThrow:
+                    StartAttack1();
+                    break;
+                case BossAttackType.Attack2EarthBlast:
+                    StartAttack2();
+                    break;
+                case BossAttackType.Attack3JumpSlam:
+                    StartAttack3();
+                    break;
+            }
         }
 
         public void SetTarget(Transform value)
@@ -682,6 +850,124 @@ namespace SeoulPlay
             return damageable == null || damageable.IsAlive;
         }
 
+        private void BeginAttack(BossAttackType attackType)
+        {
+            currentAttackType = attackType;
+            lastAttackType = attackType;
+            LockAttackTarget();
+            MarkAttackCooldown(attackType);
+        }
+
+        private void LockAttackTarget()
+        {
+            lockedTargetPosition = target != null ? target.position : transform.position + GetFlatForward() * attack3ImpactForwardOffset;
+            var direction = lockedTargetPosition - transform.position;
+            direction.y = 0f;
+            if (direction.sqrMagnitude <= 0.001f)
+            {
+                direction = GetFlatForward();
+            }
+
+            lockedAttackDirection = direction.normalized;
+            hasLockedAttackTarget = true;
+            transform.rotation = GetLookRotation(lockedAttackDirection);
+        }
+
+        private Vector3 GetLockedAttackDirection()
+        {
+            if (!hasLockedAttackTarget || lockedAttackDirection.sqrMagnitude <= 0.001f)
+            {
+                return GetFlatForward();
+            }
+
+            return lockedAttackDirection.normalized;
+        }
+
+        private void MarkAttackCooldown(BossAttackType attackType)
+        {
+            var readyAt = Time.time + GetAttackCooldown(attackType);
+            switch (attackType)
+            {
+                case BossAttackType.Attack1RockThrow:
+                    attack1ReadyAt = readyAt;
+                    break;
+                case BossAttackType.Attack2EarthBlast:
+                    attack2ReadyAt = readyAt;
+                    break;
+                case BossAttackType.Attack3JumpSlam:
+                    attack3ReadyAt = readyAt;
+                    break;
+            }
+        }
+
+        private bool IsAttackReady(BossAttackType attackType)
+        {
+            switch (attackType)
+            {
+                case BossAttackType.Attack1RockThrow:
+                    return Time.time >= attack1ReadyAt;
+                case BossAttackType.Attack2EarthBlast:
+                    return Time.time >= attack2ReadyAt;
+                case BossAttackType.Attack3JumpSlam:
+                    return Time.time >= attack3ReadyAt;
+                default:
+                    return false;
+            }
+        }
+
+        private float GetAttackCooldown(BossAttackType attackType)
+        {
+            switch (attackType)
+            {
+                case BossAttackType.Attack1RockThrow:
+                    return attack1Cooldown;
+                case BossAttackType.Attack2EarthBlast:
+                    return attack2Cooldown;
+                case BossAttackType.Attack3JumpSlam:
+                    return attack3Cooldown;
+                default:
+                    return 0f;
+            }
+        }
+
+        private bool IsAttackAnimationAvailable(BossAttackType attackType)
+        {
+            switch (attackType)
+            {
+                case BossAttackType.Attack1RockThrow:
+                    return animator == null || HasAnimatorParameter(Attack01Hash, AnimatorControllerParameterType.Trigger);
+                case BossAttackType.Attack2EarthBlast:
+                    return useAttack2InAutoAttack && animator != null && HasAnimatorParameter(Attack02Hash, AnimatorControllerParameterType.Trigger);
+                case BossAttackType.Attack3JumpSlam:
+                    return useAttack3InAutoAttack && animator != null &&
+                        (HasAnimatorParameter(Attack03Hash, AnimatorControllerParameterType.Trigger) ||
+                        animator.HasState(0, Attack03StateHash));
+                default:
+                    return false;
+            }
+        }
+
+        private float GetNextReadyTime()
+        {
+            var nextReadyAt = float.PositiveInfinity;
+            if (IsAttackAnimationAvailable(BossAttackType.Attack1RockThrow))
+            {
+                nextReadyAt = Mathf.Min(nextReadyAt, attack1ReadyAt);
+            }
+
+            if (IsAttackAnimationAvailable(BossAttackType.Attack2EarthBlast))
+            {
+                nextReadyAt = Mathf.Min(nextReadyAt, attack2ReadyAt);
+            }
+
+            if (IsAttackAnimationAvailable(BossAttackType.Attack3JumpSlam))
+            {
+                nextReadyAt = Mathf.Min(nextReadyAt, attack3ReadyAt);
+            }
+
+            return nextReadyAt;
+        }
+
         private void ChangeState(BossState nextState)
         {
             if (currentState == nextState)
@@ -745,7 +1031,9 @@ namespace SeoulPlay
 
         private Vector3 GetProjectileTargetPosition(bool includeRandomOffset)
         {
-            var targetPosition = GetBaseProjectileTargetPosition();
+            var targetPosition = currentAttackType == BossAttackType.Attack1RockThrow && hasLockedAttackTarget
+                ? lockedTargetPosition + Vector3.up * targetAimHeight
+                : GetBaseProjectileTargetPosition();
             if (includeRandomOffset && aimRandomRadius > 0f)
             {
                 var randomOffset = Random.insideUnitCircle * aimRandomRadius;
@@ -930,7 +1218,7 @@ namespace SeoulPlay
                 return;
             }
 
-            attack3JumpRoutine = StartCoroutine(PlayAttack3JumpMove(GetFlatForward()));
+            attack3JumpRoutine = StartCoroutine(PlayAttack3JumpMove(GetLockedAttackDirection()));
         }
 
         private void PlayAttack3AnimationFromStart()
@@ -978,7 +1266,17 @@ namespace SeoulPlay
 
             forward.Normalize();
             var start = transform.position;
-            var end = start + forward * attack3JumpDistance;
+            var end = hasLockedAttackTarget ? lockedTargetPosition : start + forward * attack3JumpDistance;
+            end.y = start.y;
+            if (attack3JumpDistance > 0f)
+            {
+                var offset = end - start;
+                offset.y = 0f;
+                if (offset.magnitude > attack3JumpDistance)
+                {
+                    end = start + offset.normalized * attack3JumpDistance;
+                }
+            }
             var duration = Mathf.Max(0.05f, attack3JumpDuration);
             if (attack3JumpStartDelay > 0f)
             {
@@ -1278,6 +1576,11 @@ namespace SeoulPlay
             }
 
             return Mathf.Clamp(stopDistance, 0f, attackRange);
+        }
+
+        private float GetAttackSelectRange()
+        {
+            return Mathf.Max(attackRange, longRangeDistance);
         }
 
         private void SetAnimatorMovement(bool isMoving, float moveSpeed)
