@@ -37,7 +37,6 @@ Transform:
   m_Children:
   - {fileID: 4848527089562646593}
   - {fileID: 7215164401532260086}
-  - {fileID: 6172732045281914432}
   - {fileID: 9081576718240121946}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -83,7 +82,6 @@ MonoBehaviour:
   modelRoot: {fileID: 4848527089562646593}
   followCamera: {fileID: 0}
   cameraTarget: {fileID: 7215164401532260086}
-  rollCameraTarget: {fileID: 6172732045281914432}
   walkSpeed: 2.4
   runSpeed: 5.2
   turnSpeed: 180
@@ -100,26 +98,14 @@ MonoBehaviour:
   useRightStickForCamera: 1
   useSceneCameraStartPose: 1
   cameraSmoothTime: 0.02
-  rollCameraSmoothTime: 0.12
   cameraTargetSmoothTime: 0.04
-  rollCameraTargetSmoothTime: 0.14
-  useConstantRollCameraFollow: 1
-  rollCameraFollowSpeed: 7.5
-  rollCameraTargetFollowSpeed: 8.5
   useCinemachineCamera: 1
   gameplayVirtualCamera: {fileID: 0}
-  rollVirtualCamera: {fileID: 0}
   gameplayCameraPriority: 20
-  inactiveCameraPriority: 5
-  rollCameraPriority: 30
   cinemachineCameraDistance: 6
   cinemachineCameraHeight: 1.65
   cinemachineFollowOffset: {x: 0, y: 1.65, z: -6}
-  rollCameraFollowStartNormalized: 0
-  rollCameraGroundHeight: 0.15
-  lockRollCameraYaw: 1
   gameplayCameraDamping: 0.25
-  rollCameraDamping: 0.1
   rollSpeed: 6.8
   rollDuration: 0.72
   rollCooldown: 0.2
@@ -299,37 +285,6 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 1.65, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 9081576718240121945}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &4162403338769838246
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 6172732045281914432}
-  m_Layer: 0
-  m_Name: RollCameraTarget
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &6172732045281914432
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4162403338769838246}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.15, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

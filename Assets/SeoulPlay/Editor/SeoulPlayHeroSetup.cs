@@ -37,7 +37,6 @@ namespace SeoulPlay.Editor
         private static readonly Vector3 DefaultMainCameraPosition = new(0f, 1.4f, -2.1f);
         private static readonly Vector3 DefaultMainCameraEulerAngles = new(8.6f, 0f, 0f);
         private static readonly Vector3 DefaultGameplayCameraLocalPosition = new(0f, 2.9f, -5f);
-        private static readonly Vector3 DefaultRollCameraLocalPosition = new(0f, 1.6f, -5f);
         private static readonly Vector3 DefaultChildCameraEulerAngles = new(8.6f, 0f, 0f);
         private static readonly Vector3 DefaultBossRootPosition = new(0f, 0f, 1.248f);
         private static readonly Vector3 DefaultBossModelLocalPosition = new(0f, 0f, 9.692f);
@@ -127,10 +126,9 @@ namespace SeoulPlay.Editor
 
             var heroTransform = mover.transform;
             var cameraTarget = heroTransform.Find("CameraTarget");
-            var rollCameraTarget = heroTransform.Find("RollCameraTarget");
-            if (cameraTarget == null || rollCameraTarget == null)
+            if (cameraTarget == null)
             {
-                Debug.LogError("Scene Cinemachine setup failed: CameraTarget or RollCameraTarget is missing on the hero.");
+                Debug.LogError("Scene Cinemachine setup failed: CameraTarget is missing on the hero.");
                 return;
             }
 
@@ -150,16 +148,6 @@ namespace SeoulPlay.Editor
                 5f,
                 0f,
                 0.25f);
-            var rollCamera = GetOrCreateSceneVirtualCamera(
-                rig.transform,
-                "CM Roll Camera",
-                rollCameraTarget,
-                null,
-                5,
-                5f,
-                1.45f,
-                0.1f);
-
             var brain = mainCamera.GetComponent<CinemachineBrain>();
             if (brain == null)
             {
@@ -172,7 +160,6 @@ namespace SeoulPlay.Editor
             var serializedMover = new SerializedObject(mover);
             serializedMover.FindProperty("followCamera").objectReferenceValue = mainCamera;
             serializedMover.FindProperty("gameplayVirtualCamera").objectReferenceValue = gameplayCamera;
-            serializedMover.FindProperty("rollVirtualCamera").objectReferenceValue = rollCamera;
             serializedMover.FindProperty("useCinemachineCamera").boolValue = true;
             serializedMover.ApplyModifiedProperties();
 
@@ -560,7 +547,6 @@ namespace SeoulPlay.Editor
             model.transform.localScale = Vector3.one;
 
             var cameraTarget = CreateChildTransform(root.transform, "CameraTarget", new Vector3(0f, 1.65f, 0f));
-            var rollCameraTarget = CreateChildTransform(root.transform, "RollCameraTarget", new Vector3(0f, 0.15f, 0f));
             CreateChildTransform(root.transform, "ProjectileTarget_Foot", new Vector3(0f, 0.05f, 0f));
             var animator = model.GetComponent<Animator>();
             if (animator == null)
@@ -580,9 +566,7 @@ namespace SeoulPlay.Editor
             serializedMover.FindProperty("animator").objectReferenceValue = animator;
             serializedMover.FindProperty("modelRoot").objectReferenceValue = model.transform;
             serializedMover.FindProperty("cameraTarget").objectReferenceValue = cameraTarget;
-            serializedMover.FindProperty("rollCameraTarget").objectReferenceValue = rollCameraTarget;
             serializedMover.FindProperty("gameplayVirtualCamera").objectReferenceValue = null;
-            serializedMover.FindProperty("rollVirtualCamera").objectReferenceValue = null;
             serializedMover.FindProperty("useCinemachineCamera").boolValue = true;
             serializedMover.FindProperty("useSceneCameraStartPose").boolValue = true;
             serializedMover.FindProperty("useRightStickForCamera").boolValue = true;
@@ -736,7 +720,6 @@ namespace SeoulPlay.Editor
             var mover = player.GetComponent<SimpleHeroMover>();
             var sceneCameraRig = new GameObject(SceneCameraRigName);
             var sceneCameraTarget = player.transform.Find("CameraTarget");
-            var sceneRollCameraTarget = player.transform.Find("RollCameraTarget");
             var sceneGameplayCamera = CreateVirtualCamera(
                 sceneCameraRig.transform,
                 "CM Gameplay Camera",
@@ -746,20 +729,10 @@ namespace SeoulPlay.Editor
                 5f,
                 0f,
                 0.25f);
-            var sceneRollCamera = CreateVirtualCamera(
-                sceneCameraRig.transform,
-                "CM Roll Camera",
-                sceneRollCameraTarget,
-                null,
-                5,
-                5f,
-                1.45f,
-                0.1f);
 
             var serializedMover = new SerializedObject(mover);
             serializedMover.FindProperty("followCamera").objectReferenceValue = camera;
             serializedMover.FindProperty("gameplayVirtualCamera").objectReferenceValue = sceneGameplayCamera;
-            serializedMover.FindProperty("rollVirtualCamera").objectReferenceValue = sceneRollCamera;
             serializedMover.ApplyModifiedPropertiesWithoutUndo();
 
             var shooter = player.GetComponent<SeoulPlayShooter>();

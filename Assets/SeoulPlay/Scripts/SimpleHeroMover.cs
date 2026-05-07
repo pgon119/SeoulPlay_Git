@@ -27,7 +27,6 @@ namespace SeoulPlay
         [SerializeField] private Transform modelRoot;
         [SerializeField] private Camera followCamera;
         [SerializeField] private Transform cameraTarget;
-        [SerializeField] private Transform rollCameraTarget;
 
         [Header("Movement")]
         [SerializeField, Min(0f)] private float walkSpeed = 2.4f;
@@ -48,28 +47,16 @@ namespace SeoulPlay
         [SerializeField] private bool useRightStickForCamera = true;
         [SerializeField] private bool useSceneCameraStartPose = true;
         [SerializeField, Min(0f)] private float cameraSmoothTime = 0.02f;
-        [SerializeField, Min(0f)] private float rollCameraSmoothTime = 0.12f;
         [SerializeField, Min(0f)] private float cameraTargetSmoothTime = 0.04f;
-        [SerializeField, Min(0f)] private float rollCameraTargetSmoothTime = 0.14f;
-        [SerializeField] private bool useConstantRollCameraFollow = true;
-        [SerializeField, Min(0f)] private float rollCameraFollowSpeed = 7.5f;
-        [SerializeField, Min(0f)] private float rollCameraTargetFollowSpeed = 8.5f;
 
         [Header("Cinemachine")]
         [SerializeField] private bool useCinemachineCamera = true;
         [SerializeField] private CinemachineVirtualCamera gameplayVirtualCamera;
-        [SerializeField] private CinemachineVirtualCamera rollVirtualCamera;
         [SerializeField] private int gameplayCameraPriority = 20;
-        [SerializeField] private int inactiveCameraPriority = 5;
-        [SerializeField] private int rollCameraPriority = 30;
         [SerializeField] private float cinemachineCameraDistance = 6f;
         [SerializeField] private float cinemachineCameraHeight = 1.65f;
         [SerializeField] private Vector3 cinemachineFollowOffset = new Vector3(0f, 1.65f, -6f);
-        [SerializeField, Range(0f, 1f)] private float rollCameraFollowStartNormalized = 0f;
-        [SerializeField, Min(0f)] private float rollCameraGroundHeight = 0.15f;
-        [SerializeField] private bool lockRollCameraYaw = true;
         [SerializeField, Min(0f)] private float gameplayCameraDamping = 0.25f;
-        [SerializeField, Min(0f)] private float rollCameraDamping = 0.1f;
 
         [Header("Roll")]
         [SerializeField, Min(0f)] private float rollSpeed = 6.8f;
@@ -97,8 +84,6 @@ namespace SeoulPlay
         private CharacterController characterController;
         private float verticalVelocity;
         private float cameraYaw;
-        private float lockedRollCameraYaw;
-        private float lockedRollCameraPitch;
         private float rollTimer;
         private float rollElapsedTime;
         private float activeRollDuration;
@@ -114,7 +99,6 @@ namespace SeoulPlay
         private bool hasSceneCameraStartPose;
         private bool hasForcedCinemachineScenePose;
         private bool cinemachineReady;
-        private bool wasCinemachineRolling;
         private float sceneCameraStartPitch;
         private Quaternion sceneCameraStartRotation;
         private Quaternion sceneCameraLocalRotation;
@@ -124,9 +108,6 @@ namespace SeoulPlay
         private Vector3 rollDirection;
         private Vector3 rollFacingDirection;
         private Vector3 postRollFacingDirection;
-        private Vector3 lockedRollCameraTargetPosition;
-        private Vector3 rollCameraTargetStartPosition;
-        private Vector3 rollCameraTargetEndPosition;
         private Vector2 lastLocomotionInput;
         private int[] animatorParameterHashes = System.Array.Empty<int>();
         private bool mouseCameraInputEnabled = true;
@@ -467,14 +448,6 @@ namespace SeoulPlay
             activeRollDuration = Mathf.Max(0.05f, rollDuration - rollEndEarlyTime);
             rollTimer = activeRollDuration;
             rollElapsedTime = 0f;
-            lockedRollCameraYaw = cameraYaw;
-            lockedRollCameraPitch = cameraPitch;
-            lockedRollCameraTargetPosition = cameraTarget != null
-                ? cameraTarget.position
-                : transform.position + Vector3.up * cameraHeight;
-            rollCameraTargetStartPosition = lockedRollCameraTargetPosition;
-            rollCameraTargetEndPosition = rollCameraTargetStartPosition + rollDirection * rollSpeed * activeRollDuration;
-            rollCameraTargetEndPosition.y = rollCameraTargetStartPosition.y;
             rollCooldownTimer = rollCooldown;
             rollRecoveryTimer = 0f;
             isRolling = true;
@@ -650,10 +623,7 @@ namespace SeoulPlay
             var yawRotation = Quaternion.Euler(cameraPitch, cameraYaw, 0f);
             var lookTarget = cameraTarget.position;
             var targetPosition = lookTarget - yawRotation * Vector3.forward * cameraDistance;
-            var activeSmoothTime = isRolling || rollRecoveryTimer > 0f
-                ? rollCameraSmoothTime
-                : cameraSmoothTime;
-            var smoothedPosition = GetSmoothedCameraPosition(targetPosition, activeSmoothTime);
+            var smoothedPosition = GetSmoothedCameraPosition(targetPosition, cameraSmoothTime);
 
             followCamera.transform.SetPositionAndRotation(
                 smoothedPosition,
@@ -666,9 +636,7 @@ namespace SeoulPlay
             var pitchDelta = Quaternion.Euler(cameraPitch - sceneCameraStartPitch, 0f, 0f);
             var targetPosition = cameraTarget.position + yawRotation * pitchDelta * cinemachineFollowOffset;
             var targetRotation = yawRotation * pitchDelta * sceneCameraLocalRotation;
-            var activeSmoothTime = isRolling || rollRecoveryTimer > 0f
-                ? rollCameraSmoothTime
-                : IsCameraLookInputActive() ? 0f : cameraSmoothTime;
+            var activeSmoothTime = IsCameraLookInputActive() ? 0f : cameraSmoothTime;
             var smoothedPosition = GetSmoothedCameraPosition(targetPosition, activeSmoothTime);
 
             followCamera.transform.SetPositionAndRotation(smoothedPosition, targetRotation);
@@ -707,9 +675,6 @@ namespace SeoulPlay
             }
 
             var desiredPosition = transform.position + Vector3.up * cameraHeight;
-            var activeSmoothTime = isRolling || rollRecoveryTimer > 0f
-                ? rollCameraTargetSmoothTime
-                : cameraTargetSmoothTime;
 
             if (!hasSmoothedCameraTargetPosition)
             {
@@ -717,24 +682,15 @@ namespace SeoulPlay
                 hasSmoothedCameraTargetPosition = true;
             }
 
-            if (useConstantRollCameraFollow && (isRolling || rollRecoveryTimer > 0f))
-            {
-                cameraTargetVelocity = Vector3.zero;
-                smoothedCameraTargetPosition = Vector3.MoveTowards(
-                    smoothedCameraTargetPosition,
-                    desiredPosition,
-                    rollCameraTargetFollowSpeed * Time.deltaTime);
-            }
-            else
-            {
-                smoothedCameraTargetPosition = Vector3.SmoothDamp(
-                    smoothedCameraTargetPosition,
-                    desiredPosition,
-                    ref cameraTargetVelocity,
-                    activeSmoothTime);
-            }
+            smoothedCameraTargetPosition = Vector3.SmoothDamp(
+                smoothedCameraTargetPosition,
+                desiredPosition,
+                ref cameraTargetVelocity,
+                cameraTargetSmoothTime);
             cameraTarget.position = smoothedCameraTargetPosition;
-            cameraTarget.rotation = Quaternion.Euler(0f, cameraYaw, 0f);
+            cameraTarget.rotation = useCinemachineCamera && cinemachineReady
+                ? GetSceneRelativeCameraRotation(cameraPitch, cameraYaw)
+                : Quaternion.Euler(0f, cameraYaw, 0f);
         }
 
         private Vector3 GetSmoothedCameraPosition(Vector3 targetPosition, float activeSmoothTime)
@@ -743,15 +699,6 @@ namespace SeoulPlay
             {
                 cameraVelocity = Vector3.zero;
                 return targetPosition;
-            }
-
-            if (useConstantRollCameraFollow && (isRolling || rollRecoveryTimer > 0f))
-            {
-                cameraVelocity = Vector3.zero;
-                return Vector3.MoveTowards(
-                    followCamera.transform.position,
-                    targetPosition,
-                    rollCameraFollowSpeed * Time.deltaTime);
             }
 
             return Vector3.SmoothDamp(
@@ -854,11 +801,6 @@ namespace SeoulPlay
             brain.m_DefaultBlend.m_Style = CinemachineBlendDefinition.Style.Cut;
             brain.m_DefaultBlend.m_Time = 0f;
 
-            if (rollCameraTarget == null)
-            {
-                rollCameraTarget = GetOrCreateChildTransform("RollCameraTarget", Vector3.up * rollCameraGroundHeight);
-            }
-
             gameplayVirtualCamera = EnsureVirtualCamera(
                 gameplayVirtualCamera,
                 "CM Gameplay Camera",
@@ -867,16 +809,8 @@ namespace SeoulPlay
                 gameplayCameraPriority,
                 gameplayCameraDamping);
 
-            rollVirtualCamera = EnsureVirtualCamera(
-                rollVirtualCamera,
-                "CM Roll Camera",
-                rollCameraTarget,
-                null,
-                inactiveCameraPriority,
-                rollCameraDamping);
-
-            cinemachineReady = gameplayVirtualCamera != null && rollVirtualCamera != null;
-            UpdateCinemachinePriorities(false);
+            cinemachineReady = gameplayVirtualCamera != null;
+            UpdateCinemachinePriority();
         }
 
         private CinemachineVirtualCamera EnsureVirtualCamera(
@@ -917,9 +851,8 @@ namespace SeoulPlay
             if (thirdPersonFollow != null)
             {
                 var distance = Mathf.Max(0.01f, -cinemachineFollowOffset.z);
-                var shoulderHeight = followTarget == cameraTarget ? 0f : cinemachineFollowOffset.y;
                 thirdPersonFollow.Damping = new Vector3(damping, damping, damping);
-                thirdPersonFollow.ShoulderOffset = new Vector3(Mathf.Abs(cinemachineFollowOffset.x), shoulderHeight, 0f);
+                thirdPersonFollow.ShoulderOffset = new Vector3(Mathf.Abs(cinemachineFollowOffset.x), 0f, 0f);
                 thirdPersonFollow.VerticalArmLength = 0f;
                 thirdPersonFollow.CameraSide = cinemachineFollowOffset.x < 0f ? 0f : 1f;
                 thirdPersonFollow.CameraDistance = distance;
@@ -1002,16 +935,6 @@ namespace SeoulPlay
                 hasSmoothedCameraTargetPosition = true;
             }
 
-            if (rollCameraTarget != null)
-            {
-                rollCameraTarget.position = cameraTarget != null
-                    ? cameraTarget.position
-                    : transform.position + Vector3.up * rollCameraGroundHeight;
-                rollCameraTarget.rotation = useCinemachineCamera && cinemachineReady
-                    ? GetSceneRelativeCameraRotation(GetActiveCameraPitch(), GetActiveCameraYaw())
-                    : Quaternion.Euler(0f, cameraYaw, 0f);
-            }
-
             var cameraRotation = hasSceneCameraStartPose
                 ? sceneCameraStartRotation
                 : Quaternion.Euler(cameraPitch, cameraYaw, 0f);
@@ -1019,12 +942,6 @@ namespace SeoulPlay
             {
                 gameplayVirtualCamera.transform.rotation = cameraRotation;
                 gameplayVirtualCamera.PreviousStateIsValid = false;
-            }
-
-            if (rollVirtualCamera != null)
-            {
-                rollVirtualCamera.transform.rotation = cameraRotation;
-                rollVirtualCamera.PreviousStateIsValid = false;
             }
 
             if (followCamera != null)
@@ -1061,22 +978,11 @@ namespace SeoulPlay
 
         private void UpdateCinemachineCamera()
         {
-            var rollCameraActive = isRolling && IsRollCameraFollowActive();
-            UpdateCinemachinePriorities(rollCameraActive);
-            UpdateRollCameraTarget();
+            UpdateCinemachinePriority();
 
             if (gameplayVirtualCamera != null)
             {
                 gameplayVirtualCamera.transform.rotation = GetSceneRelativeCameraRotation(cameraPitch, cameraYaw);
-            }
-
-            if (rollVirtualCamera != null)
-            {
-                rollVirtualCamera.transform.rotation = GetSceneRelativeCameraRotation(GetActiveCameraPitch(), GetActiveCameraYaw());
-                if (isRolling)
-                {
-                    rollVirtualCamera.PreviousStateIsValid = false;
-                }
             }
 
             ForceCinemachineToSceneCameraPoseOnce();
@@ -1097,11 +1003,6 @@ namespace SeoulPlay
                 gameplayVirtualCamera.ForceCameraPosition(cameraPosition, cameraRotation);
             }
 
-            if (rollVirtualCamera != null)
-            {
-                rollVirtualCamera.ForceCameraPosition(cameraPosition, cameraRotation);
-            }
-
             hasForcedCinemachineScenePose = true;
         }
 
@@ -1117,84 +1018,12 @@ namespace SeoulPlay
             return yawRotation * pitchDelta * sceneCameraLocalRotation;
         }
 
-        private void UpdateCinemachinePriorities(bool rolling)
+        private void UpdateCinemachinePriority()
         {
-            if (wasCinemachineRolling == rolling && Application.isPlaying)
-            {
-                return;
-            }
-
-            wasCinemachineRolling = rolling;
-
             if (gameplayVirtualCamera != null)
             {
-                gameplayVirtualCamera.Priority = rolling ? inactiveCameraPriority : gameplayCameraPriority;
+                gameplayVirtualCamera.Priority = gameplayCameraPriority;
             }
-
-            if (rollVirtualCamera != null)
-            {
-                rollVirtualCamera.Priority = rolling ? rollCameraPriority : inactiveCameraPriority;
-            }
-        }
-
-        private void UpdateRollCameraTarget()
-        {
-            if (rollCameraTarget == null)
-            {
-                return;
-            }
-
-            var activeYaw = GetActiveCameraYaw();
-            var followActive = isRolling && IsRollCameraFollowActive();
-            if (followActive)
-            {
-                rollCameraTarget.position = Vector3.Lerp(
-                    rollCameraTargetStartPosition,
-                    rollCameraTargetEndPosition,
-                    GetRollCameraProgress01());
-            }
-            else
-            {
-                rollCameraTarget.position = cameraTarget.position;
-            }
-            rollCameraTarget.rotation = useCinemachineCamera && cinemachineReady
-                ? GetSceneRelativeCameraRotation(GetActiveCameraPitch(), activeYaw)
-                : Quaternion.Euler(0f, activeYaw, 0f);
-        }
-
-        private bool IsRollCameraFollowActive()
-        {
-            if (!isRolling)
-            {
-                return false;
-            }
-
-            var duration = activeRollDuration > 0f ? activeRollDuration : Mathf.Max(0.05f, rollDuration - rollEndEarlyTime);
-            return rollElapsedTime >= duration * rollCameraFollowStartNormalized;
-        }
-
-        private float GetRollCameraProgress01()
-        {
-            var duration = activeRollDuration > 0f ? activeRollDuration : Mathf.Max(0.05f, rollDuration - rollEndEarlyTime);
-            var startTime = duration * rollCameraFollowStartNormalized;
-            var remainingDuration = Mathf.Max(0.001f, duration - startTime);
-            var progress = Mathf.Clamp01((rollElapsedTime - startTime) / remainingDuration);
-            if (useConstantRollCameraFollow)
-            {
-                return progress;
-            }
-
-            return progress * progress * (3f - 2f * progress);
-        }
-
-        private float GetActiveCameraYaw()
-        {
-            return isRolling && lockRollCameraYaw ? lockedRollCameraYaw : cameraYaw;
-        }
-
-        private float GetActiveCameraPitch()
-        {
-            return isRolling && lockRollCameraYaw ? lockedRollCameraPitch : cameraPitch;
         }
 
         private void CacheAnimatorParameters()
