@@ -92,6 +92,7 @@ namespace SeoulPlay
                 equippedWeapon = weaponObject.AddComponent<SeoulPlayWeapon>();
             }
 
+            EnsureMuzzle(weaponObject.transform);
             equippedWeapon.SetDamage(defaultWeaponDamage);
         }
 
@@ -106,6 +107,7 @@ namespace SeoulPlay
             weaponObject.transform.localEulerAngles = prototypeLocalEulerAngles;
             weaponObject.transform.localScale = prototypeLocalScale;
             equippedWeapon = weaponObject.GetComponent<SeoulPlayWeapon>();
+            EnsureMuzzle(weaponObject.transform);
             equippedWeapon.SetDamage(defaultWeaponDamage);
         }
 
@@ -183,6 +185,25 @@ namespace SeoulPlay
             var weapon = weaponObject.AddComponent<SeoulPlayWeapon>();
             weapon.SetMuzzle(muzzle);
             return weaponObject;
+        }
+
+        private void EnsureMuzzle(Transform weaponRoot)
+        {
+            if (equippedWeapon == null || weaponRoot == null || equippedWeapon.Muzzle != weaponRoot)
+            {
+                return;
+            }
+
+            var muzzle = weaponRoot.Find("Muzzle");
+            if (muzzle == null)
+            {
+                muzzle = new GameObject("Muzzle").transform;
+                muzzle.SetParent(weaponRoot, false);
+                muzzle.localPosition = new Vector3(0f, 0f, 0.6f);
+                muzzle.localRotation = Quaternion.identity;
+            }
+
+            equippedWeapon.SetMuzzle(muzzle);
         }
     }
 }

@@ -30,6 +30,7 @@ TagManager:
   - CoverPoint
   - Interactable
   - AIAction
+  - FX Block Zone
   layers:
   - Default
   - TransparentFX

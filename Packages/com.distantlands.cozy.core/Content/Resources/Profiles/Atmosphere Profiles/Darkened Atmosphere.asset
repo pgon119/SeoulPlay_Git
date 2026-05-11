@@ -638,7 +638,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 1.5
+    floatVal: 1.407
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -1223,7 +1223,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 0.625
+    floatVal: 0.744
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -1283,7 +1283,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 8.28
+    floatVal: 12.5
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -1342,7 +1342,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 0.352
+    floatVal: 0.571
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -1401,7 +1401,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 51.6
+    floatVal: 172.2
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -1873,7 +1873,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 1
+    floatVal: 0.575
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -2996,7 +2996,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 1
+    floatVal: 5
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -3109,7 +3109,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 5
+    floatVal: 6.4
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -3168,7 +3168,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 12
+    floatVal: 10.1
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -3227,7 +3227,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 20
+    floatVal: 26.6
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -3286,7 +3286,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 35
+    floatVal: 46.7
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -3345,7 +3345,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 0.85
+    floatVal: 0.755
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -4848,7 +4848,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 1
+    floatVal: 0.828
     curveVal:
       serializedVersion: 2
       m_Curve:

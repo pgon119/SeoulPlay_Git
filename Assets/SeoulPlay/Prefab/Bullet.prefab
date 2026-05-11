@@ -146,6 +146,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f0305a1494b74f1687d57f68b21b8b30, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  speed: 55
-  damage: 10
+  speed: 30
+  damage: 1
   lifetime: 2
+  gravity: 0
+  spinDegreesPerSecond: 0
+  castRadius: 0.18
+  showHitDebug: 0
+  visualSideOffset: 0
+  visualDownOffset: 0
+  visualOffsetDelay: 0.1
+  visualOffsetDuration: 0.3

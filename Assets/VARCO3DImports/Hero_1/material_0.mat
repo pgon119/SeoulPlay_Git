@@ -382,7 +382,7 @@ Material:
     - _OutResi: {r: 1, g: 1, b: 1, a: 1}
     - _OutlineColor: {r: 0, g: 0, b: 0, a: 1}
     - _OutlineOffset: {r: 0, g: 0, b: 0, a: 1}
-    - _OverallShadowColor: {r: 0, g: 0, b: 0, a: 1}
+    - _OverallShadowColor: {r: 0.371262, g: 0.51094747, b: 0.9716981, a: 1}
     - _PTCol: {r: 0, g: 0, b: 0, a: 1}
     - _PrevPosition: {r: 0, g: 0, b: 0, a: 0}
     - _RimLigPosi: {r: 1, g: 1, b: 1, a: 1}

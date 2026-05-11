@@ -20,7 +20,7 @@ MonoBehaviour:
   size: 2
   distance: 1
   autoScaleByDistance: 1
-  orbitOffset: 0
+  orbitOffset: 6.6
   initialRotation: {x: 0, y: 33.7, z: 0}
   satelliteRotateSpeed: 0.2
   linkToDay: 1
@@ -28,9 +28,9 @@ MonoBehaviour:
   rotationPeriodOffset: 0
   satelliteRotateAxis: {x: 0, y: 0, z: 0}
   satelliteDirection: 0
-  satelliteRotation: 300.88318
-  satellitePitch: 0
-  declination: 30
+  satelliteRotation: 370.31158
+  satellitePitch: 8.2
+  declination: 30.6
   declinationPeriod: 192
   changedLastFrame: 0
   open: 0

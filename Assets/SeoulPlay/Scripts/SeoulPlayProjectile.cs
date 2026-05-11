@@ -9,18 +9,27 @@ namespace SeoulPlay
         [SerializeField, Min(0.1f)] private float lifetime = 2f;
         [SerializeField, Min(0f)] private float gravity;
         [SerializeField, Min(0f)] private float spinDegreesPerSecond;
+        [SerializeField, Min(0.01f)] private float castRadius = 0.18f;
+        [SerializeField] private bool showHitDebug;
         [Header("Visual Offset")]
         [SerializeField] private float visualSideOffset;
         [SerializeField] private float visualDownOffset;
         [SerializeField, Min(0f)] private float visualOffsetDelay = 0.1f;
         [SerializeField, Min(0.01f)] private float visualOffsetDuration = 0.3f;
 
+        private readonly RaycastHit[] travelHits = new RaycastHit[8];
         private Vector3 direction = Vector3.forward;
         private Vector3 velocity;
         private Vector3 visualSideDirection = Vector3.zero;
         private Transform ignoredRoot;
         private Transform visualOffsetRoot;
+        private Collider projectileCollider;
         private float age;
+
+        private void Awake()
+        {
+            projectileCollider = GetComponent<Collider>();
+        }
 
         public void Launch(
             Vector3 launchDirection,
@@ -36,6 +45,11 @@ namespace SeoulPlay
             ignoredRoot = owner;
             velocity = direction * speed;
             transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
+
+            if (projectileCollider == null)
+            {
+                projectileCollider = GetComponent<Collider>();
+            }
         }
 
         public void ConfigureMotion(float projectileGravity, float projectileSpinDegreesPerSecond = 0f)
@@ -74,7 +88,14 @@ namespace SeoulPlay
                 }
             }
 
-            transform.position += velocity * Time.deltaTime;
+            var currentPosition = transform.position;
+            var nextPosition = currentPosition + velocity * Time.deltaTime;
+            if (CheckTravelHit(currentPosition, nextPosition))
+            {
+                return;
+            }
+
+            transform.position = nextPosition;
 
             if (spinDegreesPerSecond > 0f)
             {
@@ -96,7 +117,58 @@ namespace SeoulPlay
 
         private void OnTriggerEnter(Collider other)
         {
-            if (ignoredRoot != null && other.transform.IsChildOf(ignoredRoot))
+            HandleHit(other, direction);
+        }
+
+        private bool CheckTravelHit(Vector3 fromPosition, Vector3 toPosition)
+        {
+            var travel = toPosition - fromPosition;
+            var distance = travel.magnitude;
+            if (distance <= 0.001f)
+            {
+                return false;
+            }
+
+            var radius = GetCastRadius();
+            var hitCount = Physics.SphereCastNonAlloc(
+                fromPosition,
+                radius,
+                travel / distance,
+                travelHits,
+                distance,
+                Physics.DefaultRaycastLayers,
+                QueryTriggerInteraction.Collide);
+
+            var bestDistance = float.PositiveInfinity;
+            Collider bestCollider = null;
+            for (var i = 0; i < hitCount; i++)
+            {
+                var hit = travelHits[i];
+                if (hit.collider == null || ShouldIgnoreCollider(hit.collider))
+                {
+                    continue;
+                }
+
+                if (hit.distance < bestDistance)
+                {
+                    bestDistance = hit.distance;
+                    bestCollider = hit.collider;
+                }
+            }
+
+            if (bestCollider == null)
+            {
+                return false;
+            }
+
+            transform.position = fromPosition + travel.normalized * Mathf.Max(0f, bestDistance);
+            HandleHit(bestCollider, travel.normalized);
+            return true;
+        }
+
+        private void HandleHit(Collider other, Vector3 hitDirection)
+        {
+            if (ShouldIgnoreCollider(other))
             {
                 return;
             }
@@ -104,15 +176,42 @@ namespace SeoulPlay
             var damageable = other.GetComponentInParent<SeoulPlayDamageable>();
             if (damageable != null && damageable.IsAlive)
             {
-                damageable.TakeDamage(damage, direction, ignoredRoot);
+                damageable.TakeDamage(damage, hitDirection, ignoredRoot);
+                if (showHitDebug)
+                {
+                    Debug.Log($"SeoulPlayProjectile hit {damageable.name} for {damage:0.##}", damageable);
+                }
+            }
+            else if (showHitDebug)
+            {
+                Debug.Log($"SeoulPlayProjectile hit {other.name}, but no live SeoulPlayDamageable was found.", other);
             }
 
             if (other.attachedRigidbody != null)
             {
-                other.attachedRigidbody.AddForce(direction * damage, ForceMode.Impulse);
+                other.attachedRigidbody.AddForce(hitDirection * damage, ForceMode.Impulse);
             }
 
             Destroy(gameObject);
+        }
+
+        private bool ShouldIgnoreCollider(Collider other)
+        {
+            return other == null
+                || other.transform.IsChildOf(transform)
+                || (ignoredRoot != null && other.transform.IsChildOf(ignoredRoot));
+        }
+
+        private float GetCastRadius()
+        {
+            if (projectileCollider is SphereCollider sphereCollider)
+            {
+                var scale = transform.lossyScale;
+                var largestAxis = Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z));
+                return Mathf.Max(castRadius, sphereCollider.radius * largestAxis);
+            }
+
+            return castRadius;
         }
 
         private void EnsureVisualOffsetRoot()

@@ -32,7 +32,7 @@ namespace SeoulPlay.Editor
         private const string AutoRebuildEditorPrefKey = "SeoulPlay.HeroSetup.AutoRebuilt.v3";
         private const float BossMaxHealth = 100f;
         private const float HeroMaxHealth = 100f;
-        private const float HeroAttackDamage = 1f;
+        private const float HeroAttackDamage = 10f;
         private const float RollClipEndTrimFrames = 6f;
         private static readonly Vector3 DefaultMainCameraPosition = new(0f, 1.4f, -2.1f);
         private static readonly Vector3 DefaultMainCameraEulerAngles = new(8.6f, 0f, 0f);
