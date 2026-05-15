@@ -23,6 +23,8 @@ namespace SeoulPlay
         [SerializeField, Min(0f)] private float fallbackShotOriginHeight = 1.1f;
         [SerializeField, Min(0f)] private float fallbackShotOriginForwardOffset = 0.45f;
         [SerializeField, Min(0f)] private float maxMuzzleOriginDistance = 2f;
+        [Header("Roll Fire Lockout")]
+        [SerializeField] private bool blockFireWhileRolling = true;
         [SerializeField] private bool useInstantHitDamage = true;
         [SerializeField] private LayerMask damageHitMask = 1 << 20;
         [SerializeField, Min(0.01f)] private float instantHitRadius = 0.6f;
@@ -93,7 +95,7 @@ namespace SeoulPlay
         {
             UpdateAimFacing();
 
-            if (!IsFireHeld() || Time.time < nextFireTime)
+            if (ShouldBlockFireForRoll() || !IsFireHeld() || Time.time < nextFireTime)
             {
                 return;
             }
@@ -407,6 +409,16 @@ namespace SeoulPlay
                 || Input.GetKey(KeyCode.F)
                 || GetButtonSafe("RB")
                 || GetAxisSafe("RT") > 0.2f;
+        }
+
+        private bool ShouldBlockFireForRoll()
+        {
+            if (!blockFireWhileRolling || heroMover == null)
+            {
+                return false;
+            }
+
+            return heroMover.IsRollingOrStartingRoll;
         }
 
         private static bool IsAimFacingHeld()

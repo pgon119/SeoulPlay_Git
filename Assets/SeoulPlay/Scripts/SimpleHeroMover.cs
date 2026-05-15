@@ -108,6 +108,9 @@ namespace SeoulPlay
         private Vector3 rollDirection;
         private Vector3 rollFacingDirection;
         private Vector3 postRollFacingDirection;
+
+        public bool IsRolling => isRolling;
+        public bool IsRollingOrStartingRoll => isRolling || CanStartRollThisFrame();
         private Vector2 lastLocomotionInput;
         private int[] animatorParameterHashes = System.Array.Empty<int>();
         private bool mouseCameraInputEnabled = true;
@@ -195,7 +198,7 @@ namespace SeoulPlay
             verticalVelocity += gravity * Time.deltaTime;
 
             rollCooldownTimer = Mathf.Max(0f, rollCooldownTimer - Time.deltaTime);
-            if (!isRolling && characterController.isGrounded && rollCooldownTimer <= 0f && IsRollPressed())
+            if (!isRolling && CanStartRollThisFrame())
             {
                 StartRoll(input);
             }
@@ -436,6 +439,14 @@ namespace SeoulPlay
         private bool IsRollPressed()
         {
             return Input.GetKeyDown(KeyCode.C) || Input.GetButtonDown("B");
+        }
+
+        private bool CanStartRollThisFrame()
+        {
+            return characterController != null
+                && characterController.isGrounded
+                && rollCooldownTimer <= 0f
+                && IsRollPressed();
         }
 
         private void StartRoll(Vector2 input)

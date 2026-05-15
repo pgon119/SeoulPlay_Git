@@ -184,6 +184,7 @@ MonoBehaviour:
   fallbackShotOriginHeight: 1.1
   fallbackShotOriginForwardOffset: 0.45
   maxMuzzleOriginDistance: 2
+  blockFireWhileRolling: 1
   useInstantHitDamage: 1
   damageHitMask:
     serializedVersion: 2
