@@ -10,7 +10,13 @@ namespace SeoulPlay
         [SerializeField, Min(0f)] private float gravity;
         [SerializeField, Min(0f)] private float spinDegreesPerSecond;
         [SerializeField, Min(0.01f)] private float castRadius = 0.18f;
+        [SerializeField] private bool collisionEnabled = true;
         [SerializeField] private bool showHitDebug;
+        [Header("Impact Feedback")]
+        [SerializeField] private GameObject impactVfxPrefab;
+        [SerializeField, Min(0.05f)] private float impactVfxLifetime = 3f;
+        [SerializeField] private bool alignImpactVfxToTravelDirection = true;
+        [SerializeField, Range(-1, 31)] private int foregroundVfxLayer = -1;
         [Header("Visual Offset")]
         [SerializeField] private float visualSideOffset;
         [SerializeField] private float visualDownOffset;
@@ -58,6 +64,34 @@ namespace SeoulPlay
             spinDegreesPerSecond = Mathf.Max(0f, projectileSpinDegreesPerSecond);
         }
 
+        public void ConfigureCollision(bool enabled)
+        {
+            collisionEnabled = enabled;
+
+            if (projectileCollider == null)
+            {
+                projectileCollider = GetComponent<Collider>();
+            }
+
+            if (projectileCollider != null)
+            {
+                projectileCollider.enabled = enabled;
+            }
+        }
+
+        public void ConfigureImpactVfx(GameObject prefab, float vfxLifetime = 3f, bool alignToTravelDirection = true)
+        {
+            impactVfxPrefab = prefab;
+            impactVfxLifetime = Mathf.Max(0.05f, vfxLifetime);
+            alignImpactVfxToTravelDirection = alignToTravelDirection;
+        }
+
+        public void ConfigureForegroundVfxLayer(int layer)
+        {
+            foregroundVfxLayer = layer;
+            ApplyRendererLayerRecursive(transform, layer);
+        }
+
         public void ConfigureVisualOffset(
             float sideOffset,
             float downOffset,
@@ -90,7 +124,7 @@ namespace SeoulPlay
 
             var currentPosition = transform.position;
             var nextPosition = currentPosition + velocity * Time.deltaTime;
-            if (CheckTravelHit(currentPosition, nextPosition))
+            if (collisionEnabled && CheckTravelHit(currentPosition, nextPosition))
             {
                 return;
             }
@@ -117,6 +151,11 @@ namespace SeoulPlay
 
         private void OnTriggerEnter(Collider other)
         {
+            if (!collisionEnabled)
+            {
+                return;
+            }
+
             HandleHit(other, direction);
         }
 
@@ -137,7 +176,7 @@ namespace SeoulPlay
                 travelHits,
                 distance,
                 Physics.DefaultRaycastLayers,
-                QueryTriggerInteraction.Collide);
+                QueryTriggerInteraction.Ignore);
 
             var bestDistance = float.PositiveInfinity;
             Collider bestCollider = null;
@@ -192,12 +231,32 @@ namespace SeoulPlay
                 other.attachedRigidbody.AddForce(hitDirection * damage, ForceMode.Impulse);
             }
 
+            SpawnImpactVfx(hitDirection);
             Destroy(gameObject);
+        }
+
+        private void SpawnImpactVfx(Vector3 hitDirection)
+        {
+            if (impactVfxPrefab == null)
+            {
+                return;
+            }
+
+            var rotation = Quaternion.identity;
+            if (alignImpactVfxToTravelDirection && hitDirection.sqrMagnitude > 0.001f)
+            {
+                rotation = Quaternion.LookRotation(hitDirection.normalized, Vector3.up);
+            }
+
+            var vfxObject = Instantiate(impactVfxPrefab, transform.position, rotation);
+            ApplyLayerRecursive(vfxObject.transform, foregroundVfxLayer);
+            Destroy(vfxObject, impactVfxLifetime);
         }
 
         private bool ShouldIgnoreCollider(Collider other)
         {
             return other == null
+                || other.isTrigger
                 || other.transform.IsChildOf(transform)
                 || (ignoredRoot != null && other.transform.IsChildOf(ignoredRoot));
         }
@@ -228,6 +287,7 @@ namespace SeoulPlay
             }
 
             var rootObject = new GameObject("VisualOffsetRoot");
+            rootObject.layer = gameObject.layer;
             visualOffsetRoot = rootObject.transform;
             visualOffsetRoot.SetParent(transform, false);
             visualOffsetRoot.localPosition = Vector3.zero;
@@ -243,6 +303,7 @@ namespace SeoulPlay
                 }
 
                 var visualObject = new GameObject(sourceRenderer.gameObject.name + "_Visual");
+                visualObject.layer = gameObject.layer;
                 var visualTransform = visualObject.transform;
                 visualTransform.SetParent(visualOffsetRoot, false);
                 visualTransform.localPosition = transform.InverseTransformPoint(sourceRenderer.transform.position);
@@ -279,6 +340,38 @@ namespace SeoulPlay
             var hasSideOffset = Mathf.Abs(visualSideOffset) > 0.001f && visualSideDirection.sqrMagnitude > 0.001f;
             var hasDownOffset = Mathf.Abs(visualDownOffset) > 0.001f;
             return hasSideOffset || hasDownOffset;
+        }
+
+        private static void ApplyLayerRecursive(Transform target, int layer)
+        {
+            if (target == null || layer < 0 || layer > 31)
+            {
+                return;
+            }
+
+            target.gameObject.layer = layer;
+            for (var i = 0; i < target.childCount; i++)
+            {
+                ApplyLayerRecursive(target.GetChild(i), layer);
+            }
+        }
+
+        private static void ApplyRendererLayerRecursive(Transform target, int layer)
+        {
+            if (target == null || layer < 0 || layer > 31)
+            {
+                return;
+            }
+
+            if (target.GetComponent<Renderer>() != null)
+            {
+                target.gameObject.layer = layer;
+            }
+
+            for (var i = 0; i < target.childCount; i++)
+            {
+                ApplyRendererLayerRecursive(target.GetChild(i), layer);
+            }
         }
     }
 }

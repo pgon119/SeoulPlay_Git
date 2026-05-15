@@ -18,6 +18,9 @@ namespace SeoulPlay.Editor
         private const string BuildingPrefabPath = "Assets/SeoulPlay/Modeling/Background/Building.prefab";
         private const string RiflePrefabPath = "Assets/SeoulPlay/Prefab/Weapon_Rifle_1.prefab";
         private const string BulletPrefabPath = "Assets/SeoulPlay/Prefab/Bullet.prefab";
+        private const string SmallFireBulletPrefabPath = "Assets/MasterStylizedProjectiles/Projectiles/SmallFireBullet/Prefabs/SmallFireBullet.prefab";
+        private const string SmallFireMuzzlePrefabPath = "Assets/MasterStylizedProjectiles/Projectiles/SmallFireBullet/Prefabs/SmallFireMuzzle.prefab";
+        private const string SmallFireBulletHitPrefabPath = "Assets/MasterStylizedProjectiles/Projectiles/SmallFireBullet/Prefabs/SmallFireBulletHit.prefab";
         private const string BossPrefabPath = "Assets/SeoulPlay/Prefab/Boss_1/Monster_Boss_1.prefab";
         private const string HeroAnimationFolder = "Assets/SeoulPlay/Animaition/SeoulPlay_Hero_1";
         private const string AnimationFolder = HeroAnimationFolder;
@@ -583,6 +586,7 @@ namespace SeoulPlay.Editor
             serializedWeaponHolder.FindProperty("weaponPrefab").objectReferenceValue =
                 AssetDatabase.LoadAssetAtPath<GameObject>(RiflePrefabPath);
             serializedWeaponHolder.FindProperty("defaultWeaponDamage").floatValue = HeroAttackDamage;
+            serializedWeaponHolder.FindProperty("preferredMuzzleName").stringValue = "FireBullet_FireMuzzle_FxPosition";
             serializedWeaponHolder.ApplyModifiedPropertiesWithoutUndo();
 
             var serializedShooter = new SerializedObject(shooter);
@@ -590,7 +594,17 @@ namespace SeoulPlay.Editor
             serializedShooter.FindProperty("crosshair").objectReferenceValue = crosshair;
             serializedShooter.FindProperty("heroMover").objectReferenceValue = mover;
             serializedShooter.FindProperty("projectilePrefab").objectReferenceValue =
-                AssetDatabase.LoadAssetAtPath<GameObject>(BulletPrefabPath);
+                AssetDatabase.LoadAssetAtPath<GameObject>(SmallFireBulletPrefabPath)
+                ?? AssetDatabase.LoadAssetAtPath<GameObject>(BulletPrefabPath);
+            serializedShooter.FindProperty("projectileVisualScale").floatValue = 2.5f;
+            serializedShooter.FindProperty("minimumVisibleHitDistance").floatValue = 3f;
+            serializedShooter.FindProperty("impactFrontOffset").floatValue = 0.35f;
+            serializedShooter.FindProperty("minimumVisibleProjectileFlightTime").floatValue = 0.16f;
+            serializedShooter.FindProperty("muzzleVfxPrefab").objectReferenceValue =
+                AssetDatabase.LoadAssetAtPath<GameObject>(SmallFireMuzzlePrefabPath);
+            serializedShooter.FindProperty("impactVfxPrefab").objectReferenceValue =
+                AssetDatabase.LoadAssetAtPath<GameObject>(SmallFireBulletHitPrefabPath);
+            serializedShooter.FindProperty("addProjectileTrail").boolValue = false;
             serializedShooter.FindProperty("rotateCameraToAim").boolValue = false;
             serializedShooter.ApplyModifiedPropertiesWithoutUndo();
 

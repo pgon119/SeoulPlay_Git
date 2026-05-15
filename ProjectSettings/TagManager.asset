@@ -52,10 +52,10 @@ TagManager:
   - Pushable
   - CoverPoint
   - BossNoFog
-  - 
-  - 
-  - 
-  - 
+  - Hurtbox
+  - Hitbox
+  - CharacterCollision
+  - NoFogVFX
   - 
   - 
   - 

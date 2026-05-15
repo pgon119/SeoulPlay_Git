@@ -144,7 +144,8 @@ MonoBehaviour:
   mountLocalPosition: {x: 0.05, y: 0.02, z: 0.08}
   mountLocalEulerAngles: {x: 0, y: 90, z: 0}
   equipOnAwake: 1
-  defaultWeaponDamage: 10
+  defaultWeaponDamage: 1
+  preferredMuzzleName: FireBullet_FireMuzzle_FxPosition
   weaponLocalPosition: {x: 0, y: 0, z: 0}
   weaponLocalEulerAngles: {x: 0, y: 0, z: 0}
   weaponLocalScale: {x: 1, y: 1, z: 1}
@@ -168,7 +169,9 @@ MonoBehaviour:
   crosshair: {fileID: 6472303797997243950}
   heroMover: {fileID: 4828167306849933152}
   aimCamera: {fileID: 0}
-  projectilePrefab: {fileID: 100000, guid: 8d4b09c0e5e84ad3a97dbadf6c3b1f02, type: 3}
+  projectilePrefab: {fileID: 5912344974454636654, guid: e1dffc863f951234c8886eb1bb39e9dd,
+    type: 3}
+  projectileVisualScale: 2.5
   projectileSpeed: 55
   projectileLifetime: 2
   muzzleForwardOffset: 0.35
@@ -182,9 +185,25 @@ MonoBehaviour:
   fallbackShotOriginForwardOffset: 0.45
   maxMuzzleOriginDistance: 2
   useInstantHitDamage: 1
-  instantHitRadius: 0.6
-  showHitDebug: 1
-  addProjectileTrail: 1
+  damageHitMask:
+    serializedVersion: 2
+    m_Bits: 1048576
+  instantHitRadius: 0.1
+  minimumVisibleHitDistance: 3
+  impactFrontOffset: 0.1
+  minimumVisibleProjectileFlightTime: 0.16
+  instantHitVfxDelayPadding: 0.02
+  showHitDebug: 0
+  muzzleVfxPrefab: {fileID: 4186470608034871016, guid: d0587f5385f12eb419ec33e7406d7b55,
+    type: 3}
+  impactVfxPrefab: {fileID: 4186470608034871016, guid: 419d6ca370932a142a195479044cb169,
+    type: 3}
+  shotVfxLifetime: 3
+  alignShotVfxToShotDirection: 1
+  renderShotVfxAfterNoFogBoss: 1
+  shotVfxLayer: 23
+  addProjectileTrail: 0
+  skipTrailWhenProjectileHasParticles: 1
   projectileTrailDuration: 0.18
   projectileTrailWidth: 0.035
   projectileTrailColor: {r: 1, g: 0.78, b: 0.18, a: 1}
