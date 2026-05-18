@@ -29,6 +29,8 @@ namespace SeoulPlay
         [SerializeField] private Transform cameraTarget;
 
         [Header("Movement")]
+        [SerializeField] private bool enableRollInput = true;
+        [SerializeField] private bool enableFireInput = true;
         [SerializeField, Min(0f)] private float walkSpeed = 2.4f;
         [SerializeField, Min(0f)] private float runSpeed = 5.2f;
         [SerializeField, Min(0f)] private float turnSpeed = 180f;
@@ -443,7 +445,8 @@ namespace SeoulPlay
 
         private bool CanStartRollThisFrame()
         {
-            return characterController != null
+            return enableRollInput
+                && characterController != null
                 && characterController.isGrounded
                 && rollCooldownTimer <= 0f
                 && IsRollPressed();
@@ -592,7 +595,8 @@ namespace SeoulPlay
             SetAnimatorBool(GroundedHash, characterController.isGrounded);
             SetAnimatorBool(AimHash, driveAnimatorAimFromAimInput && aimPressed);
 
-            var firePressed = Input.GetMouseButton(0) || Input.GetButton("RB") || Input.GetAxis("RT") > 0.2f;
+            var firePressed = enableFireInput
+                && (Input.GetMouseButton(0) || Input.GetButton("RB") || Input.GetAxis("RT") > 0.2f);
             if (firePressed && !wasFirePressed && !isRolling)
             {
                 upperBodyFireTimer = upperBodyFireDuration;
