@@ -51,6 +51,8 @@ namespace HeneGames.DialogueSystem
 
         [Header("Next sentence input")]
         public KeyCode actionInput = KeyCode.Space;
+        [SerializeField] private bool useGamepadActionInput = true;
+        [SerializeField] private string gamepadActionButton = "A";
 
         private void Update()
         {
@@ -66,9 +68,31 @@ namespace HeneGames.DialogueSystem
         public virtual void InputUpdate()
         {
             //Next dialogue input
-            if (Input.GetKeyDown(actionInput))
+            if (ActionInputDown())
             {
                 NextSentenceSoft();
+            }
+        }
+
+        public bool ActionInputDown()
+        {
+            return Input.GetKeyDown(actionInput)
+                || (useGamepadActionInput && GetButtonDown(gamepadActionButton))
+                || Input.GetKeyDown(KeyCode.JoystickButton0);
+        }
+
+        private static bool GetButtonDown(string buttonName)
+        {
+            if (string.IsNullOrWhiteSpace(buttonName))
+                return false;
+
+            try
+            {
+                return Input.GetButtonDown(buttonName);
+            }
+            catch (UnityException)
+            {
+                return false;
             }
         }
 
