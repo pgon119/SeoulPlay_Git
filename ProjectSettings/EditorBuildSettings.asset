@@ -6,8 +6,14 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/SeoulPlay/Scenes/SampleScene.unity
-    guid: 99c9720ab356a0642a771bea13969a05
+    path: Assets/SeoulPlay/Scenes/SeoulPlay_UI/SeoulPlay_Title.unity
+    guid: 24a58f99eee90a6438be092ca9274901
+  - enabled: 1
+    path: Assets/SeoulPlay/Scenes/SeoulPlay_VideoScene/SeoulPlay_VideoScene_1.unity
+    guid: ce66ded0f7f642158057fb34922b809f
+  - enabled: 1
+    path: Assets/SeoulPlay/Scenes/SeoulPlay_UI/SeoulPlay_Loading.unity
+    guid: 6bbdc7a764d84d66b48d31bc6200f671
   - enabled: 1
     path: Assets/SeoulPlay/Scenes/SeoulPlay_Street1/SeoulPlay_Street1.unity
     guid: a4f658fdb536227408d3640f6c04b06b
