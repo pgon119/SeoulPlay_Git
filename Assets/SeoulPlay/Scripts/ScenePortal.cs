@@ -1,10 +1,13 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using EasyTransition;
 
 public class ScenePortal : MonoBehaviour
 {
     [SerializeField] private string targetSceneName = "SeoulPlay_BossBattle";
     [SerializeField] private string playerTag = "Player";
+    [SerializeField] private TransitionSettings transition;
+    [SerializeField, Min(0f)] private float transitionStartDelay;
 
     private bool isLoading;
 
@@ -14,6 +17,14 @@ public class ScenePortal : MonoBehaviour
             return;
 
         isLoading = true;
+
+        var transitionManager = transition != null ? TransitionManager.Instance() : null;
+        if (transitionManager != null)
+        {
+            transitionManager.Transition(targetSceneName, transition, transitionStartDelay);
+            return;
+        }
+
         SceneManager.LoadScene(targetSceneName, LoadSceneMode.Single);
     }
 
