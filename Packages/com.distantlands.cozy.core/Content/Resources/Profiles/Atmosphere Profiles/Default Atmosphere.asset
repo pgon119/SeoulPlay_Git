@@ -1867,7 +1867,7 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
   gradientExponent:
-    overrideValue: 1
+    overrideValue: 0
     mode: 1
     colorVal: {r: 1, g: 1, b: 1, a: 1}
     gradientVal:
@@ -1900,7 +1900,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 0.546
+    floatVal: 0.631
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -3313,7 +3313,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 16.5
+    floatVal: 22.3
     curveVal:
       serializedVersion: 2
       m_Curve:
