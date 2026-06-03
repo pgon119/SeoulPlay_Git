@@ -219,6 +219,7 @@ namespace SeoulPlay
         private Coroutine attack3JumpRoutine;
 
         public BossState CurrentState => currentState;
+        public bool AutoAttackEnabled => autoAttack;
 
         private void Awake()
         {
@@ -300,7 +301,7 @@ namespace SeoulPlay
                 ChangeState(BossState.Dead);
             }
 
-            if (!autoAttack && currentState != BossState.Dead)
+            if (!autoAttack && currentState != BossState.Dead && currentState != BossState.Attack)
             {
                 ChangeState(BossState.Idle);
                 SetAnimatorMovement(false, 0f);
@@ -782,6 +783,54 @@ namespace SeoulPlay
             }
         }
 
+        public void SetAutoAttack(bool value)
+        {
+            autoAttack = value;
+            if (!autoAttack && currentState != BossState.Attack && currentState != BossState.Dead)
+            {
+                currentChaseSpeed = 0f;
+                ChangeState(BossState.Idle);
+                SetAnimatorMovement(false, 0f);
+            }
+        }
+
+        public void ResetCooldowns()
+        {
+            cooldownEndsAt = 0f;
+            attack1ReadyAt = 0f;
+            attack2ReadyAt = 0f;
+            attack3ReadyAt = 0f;
+        }
+
+        public void ForceFinishAttack()
+        {
+            attackLockedUntil = 0f;
+            cooldownEndsAt = 0f;
+            currentAttackType = BossAttackType.None;
+            hasLockedAttackTarget = false;
+            attack1RockFired = true;
+            attack2EarthBlastFired = true;
+            attack3SlamFired = true;
+            attack3ImpactVfxFired = true;
+            currentChaseSpeed = 0f;
+
+            if (attack3JumpRoutine != null)
+            {
+                StopCoroutine(attack3JumpRoutine);
+                attack3JumpRoutine = null;
+            }
+
+            DestroyAttack1RockClone();
+            HideHeldRock();
+            ResetAttackTriggers();
+            SetAnimatorMovement(false, 0f);
+
+            if (CanAct())
+            {
+                ChangeState(autoAttack && target != null ? BossState.Chase : BossState.Idle);
+            }
+        }
+
         public void ShowHeldRock()
         {
             CreateAttack1RockClone();
@@ -1228,6 +1277,28 @@ namespace SeoulPlay
                 return;
             }
 
+            ResetAttackTriggers();
+
+            if (animator.HasState(0, Attack03StateHash))
+            {
+                animator.Play(Attack03StateHash, 0, 0f);
+                animator.Update(0f);
+                return;
+            }
+
+            if (HasAnimatorParameter(Attack03Hash, AnimatorControllerParameterType.Trigger))
+            {
+                animator.SetTrigger(Attack03Hash);
+            }
+        }
+
+        private void ResetAttackTriggers()
+        {
+            if (animator == null || animator.runtimeAnimatorController == null)
+            {
+                return;
+            }
+
             if (HasAnimatorParameter(Attack01Hash, AnimatorControllerParameterType.Trigger))
             {
                 animator.ResetTrigger(Attack01Hash);
@@ -1241,18 +1312,6 @@ namespace SeoulPlay
             if (HasAnimatorParameter(Attack03Hash, AnimatorControllerParameterType.Trigger))
             {
                 animator.ResetTrigger(Attack03Hash);
-            }
-
-            if (animator.HasState(0, Attack03StateHash))
-            {
-                animator.Play(Attack03StateHash, 0, 0f);
-                animator.Update(0f);
-                return;
-            }
-
-            if (HasAnimatorParameter(Attack03Hash, AnimatorControllerParameterType.Trigger))
-            {
-                animator.SetTrigger(Attack03Hash);
             }
         }
 

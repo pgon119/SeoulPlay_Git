@@ -56,6 +56,17 @@ namespace SeoulPlay
             TakeDamage(damage, Vector3.zero, null);
         }
 
+        public void ResetHealth()
+        {
+            currentHealth = maxHealth;
+            dead = false;
+
+            foreach (var targetCollider in GetComponentsInChildren<Collider>())
+            {
+                targetCollider.enabled = true;
+            }
+        }
+
         public void TakeDamage(float damage, Vector3 hitDirection, Transform attacker)
         {
             if (dead || damage <= 0f)
