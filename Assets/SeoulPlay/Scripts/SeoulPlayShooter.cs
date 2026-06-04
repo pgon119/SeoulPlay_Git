@@ -140,6 +140,8 @@ namespace SeoulPlay
                 weaponHolder.EquipDefaultWeapon();
             }
 
+            SnapBodyToAim();
+
             var weapon = weaponHolder != null ? weaponHolder.EquippedWeapon : null;
             var fireRate = weapon != null ? weapon.FireRate : 8f;
             nextFireTime = Time.time + 1f / Mathf.Max(0.01f, fireRate);
@@ -187,6 +189,24 @@ namespace SeoulPlay
             AddProjectileTrail(projectileObject);
             lastFireTime = Time.time;
             lastFireStatus = $"Fired {projectileObject.name} damage {damage:0.##} {hitResult.Status} dir {direction.x:0.00},{direction.y:0.00},{direction.z:0.00} y {spawnPosition.y:0.00}";
+        }
+
+        private void SnapBodyToAim()
+        {
+            if (!rotateBodyToAim || aimCamera == null)
+            {
+                return;
+            }
+
+            var origin = transform.position + Vector3.up * aimFacingHeight;
+            var direction = GetAimDirection(origin);
+            direction.y = 0f;
+            if (direction.sqrMagnitude <= 0.001f)
+            {
+                return;
+            }
+
+            transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
         }
 
         private Vector3 GetAimDirection(Vector3 fromPosition)

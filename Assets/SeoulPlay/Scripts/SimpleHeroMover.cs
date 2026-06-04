@@ -191,6 +191,7 @@ namespace SeoulPlay
             var isRunning = Input.GetKey(KeyCode.LeftShift) || Input.GetButton("LeftStickClick");
             var moveSpeed = isRunning ? runSpeed : walkSpeed;
             var worldMove = GetCameraRelativeMove(input);
+            var firePressed = IsFirePressed();
 
             if (characterController.isGrounded && verticalVelocity < 0f)
             {
@@ -212,10 +213,10 @@ namespace SeoulPlay
             else
             {
                 MoveCharacter(worldMove, moveSpeed);
-                UpdateFacing(worldMove, input, aimPressed);
+                UpdateFacing(worldMove, input, aimPressed, firePressed);
             }
 
-            UpdateAnimator(input, isRunning, aimPressed);
+            UpdateAnimator(input, isRunning, aimPressed, firePressed);
             if (rollRecoveryTimer > 0f)
             {
                 UpdateRollRecovery();
@@ -284,9 +285,9 @@ namespace SeoulPlay
             return Vector3.ClampMagnitude(right * input.x + forward * input.y, 1f);
         }
 
-        private void UpdateFacing(Vector3 worldMove, Vector2 input, bool aimPressed)
+        private void UpdateFacing(Vector3 worldMove, Vector2 input, bool aimPressed, bool firePressed)
         {
-            if (aimPressed || (input.sqrMagnitude > 0.001f && input.y <= 0.1f))
+            if (firePressed || aimPressed || IsMovingBackward(input))
             {
                 RotateToward(GetCameraForward());
                 return;
@@ -294,7 +295,7 @@ namespace SeoulPlay
 
             if (worldMove.sqrMagnitude > 0.001f)
             {
-                RotateToward(worldMove);
+                SnapToward(worldMove);
             }
         }
 
@@ -436,6 +437,20 @@ namespace SeoulPlay
             return Input.GetMouseButton(1)
                 || Input.GetButton("LB")
                 || Input.GetAxis("LT") > 0.2f;
+        }
+
+        private bool IsFirePressed()
+        {
+            return enableFireInput
+                && (Input.GetMouseButton(0)
+                    || Input.GetKey(KeyCode.F)
+                    || Input.GetButton("RB")
+                    || Input.GetAxis("RT") > 0.2f);
+        }
+
+        private static bool IsMovingBackward(Vector2 input)
+        {
+            return input.sqrMagnitude > 0.001f && input.y < -0.1f;
         }
 
         private bool IsRollPressed()
@@ -581,7 +596,7 @@ namespace SeoulPlay
             characterController.Move(deltaPosition * rollRootMotionScale);
         }
 
-        private void UpdateAnimator(Vector2 input, bool isRunning, bool aimPressed)
+        private void UpdateAnimator(Vector2 input, bool isRunning, bool aimPressed, bool firePressed)
         {
             if (animator == null)
             {
@@ -589,14 +604,15 @@ namespace SeoulPlay
             }
 
             var speed01 = isRolling ? 0f : input.magnitude;
-            SetAnimatorFloat(MoveXHash, isRolling ? 0f : input.x, 0.1f);
-            SetAnimatorFloat(MoveZHash, isRolling ? 0f : input.y, 0.1f);
+            var animatorMoveInput = isRolling
+                ? Vector2.zero
+                : GetAnimatorMoveInput(input, aimPressed, firePressed);
+            SetAnimatorFloat(MoveXHash, animatorMoveInput.x, 0.1f);
+            SetAnimatorFloat(MoveZHash, animatorMoveInput.y, 0.1f);
             SetAnimatorFloat(SpeedHash, isRunning ? speed01 * 2f : speed01, 0.1f);
             SetAnimatorBool(GroundedHash, characterController.isGrounded);
             SetAnimatorBool(AimHash, driveAnimatorAimFromAimInput && aimPressed);
 
-            var firePressed = enableFireInput
-                && (Input.GetMouseButton(0) || Input.GetButton("RB") || Input.GetAxis("RT") > 0.2f);
             if (firePressed && !wasFirePressed && !isRolling)
             {
                 upperBodyFireTimer = upperBodyFireDuration;
@@ -611,6 +627,21 @@ namespace SeoulPlay
             {
                 lastLocomotionInput = input;
             }
+        }
+
+        private static Vector2 GetAnimatorMoveInput(Vector2 input, bool aimPressed, bool firePressed)
+        {
+            if (input.sqrMagnitude <= 0.001f)
+            {
+                return Vector2.zero;
+            }
+
+            if (firePressed || aimPressed || IsMovingBackward(input))
+            {
+                return input;
+            }
+
+            return new Vector2(0f, input.magnitude);
         }
 
         private void UpdateCamera()
