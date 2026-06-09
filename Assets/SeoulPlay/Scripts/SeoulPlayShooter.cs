@@ -25,6 +25,7 @@ namespace SeoulPlay
         [SerializeField, Min(0f)] private float maxMuzzleOriginDistance = 2f;
         [Header("Roll Fire Lockout")]
         [SerializeField] private bool blockFireWhileRolling = true;
+        [SerializeField, Min(0f)] private float rollInputFireLockoutDuration = 1f;
         [SerializeField] private bool useInstantHitDamage = true;
         [SerializeField] private LayerMask damageHitMask = 1 << 20;
         [SerializeField, Min(0.01f)] private float instantHitRadius = 0.6f;
@@ -49,6 +50,7 @@ namespace SeoulPlay
 
         private readonly RaycastHit[] aimHits = new RaycastHit[16];
         private float nextFireTime;
+        private float rollInputFireLockoutTimer;
         private float lastFireTime = -999f;
         private string lastFireStatus = "No shots yet";
 
@@ -87,12 +89,13 @@ namespace SeoulPlay
 
             if (heroMover == null)
             {
-                heroMover = GetComponent<SimpleHeroMover>();
+                ResolveHeroMover();
             }
         }
 
         private void Update()
         {
+            UpdateRollInputFireLockout();
             UpdateAimFacing();
 
             if (ShouldBlockFireForRoll() || !IsFireHeld() || Time.time < nextFireTime)
@@ -433,12 +436,58 @@ namespace SeoulPlay
 
         private bool ShouldBlockFireForRoll()
         {
-            if (!blockFireWhileRolling || heroMover == null)
+            if (!blockFireWhileRolling)
             {
                 return false;
             }
 
-            return heroMover.IsRollingOrStartingRoll;
+            if (rollInputFireLockoutTimer > 0f)
+            {
+                return true;
+            }
+
+            if (heroMover == null)
+            {
+                ResolveHeroMover();
+            }
+
+            if (heroMover == null)
+            {
+                return false;
+            }
+
+            return heroMover.IsFireBlockedByRoll;
+        }
+
+        private void UpdateRollInputFireLockout()
+        {
+            rollInputFireLockoutTimer = Mathf.Max(0f, rollInputFireLockoutTimer - Time.deltaTime);
+            if (IsRollInputPressed())
+            {
+                rollInputFireLockoutTimer = Mathf.Max(rollInputFireLockoutTimer, rollInputFireLockoutDuration);
+            }
+        }
+
+        private static bool IsRollInputPressed()
+        {
+            return Input.GetKeyDown(KeyCode.C) || GetButtonDownSafe("B");
+        }
+
+        private void ResolveHeroMover()
+        {
+            heroMover = GetComponent<SimpleHeroMover>();
+            if (heroMover != null)
+            {
+                return;
+            }
+
+            heroMover = GetComponentInParent<SimpleHeroMover>();
+            if (heroMover != null)
+            {
+                return;
+            }
+
+            heroMover = GetComponentInChildren<SimpleHeroMover>();
         }
 
         private static bool IsAimFacingHeld()
@@ -638,6 +687,18 @@ namespace SeoulPlay
             try
             {
                 return Input.GetButton(buttonName);
+            }
+            catch (UnityException)
+            {
+                return false;
+            }
+        }
+
+        private static bool GetButtonDownSafe(string buttonName)
+        {
+            try
+            {
+                return Input.GetButtonDown(buttonName);
             }
             catch (UnityException)
             {

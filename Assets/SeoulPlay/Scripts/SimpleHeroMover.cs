@@ -13,6 +13,7 @@ namespace SeoulPlay
         private static readonly int GroundedHash = Animator.StringToHash("Grounded");
         private static readonly int AimHash = Animator.StringToHash("Aim");
         private static readonly int FireHash = Animator.StringToHash("Fire");
+        private static readonly int IsFiringHash = Animator.StringToHash("IsFiring");
         private static readonly int RollingHash = Animator.StringToHash("Rolling");
         private static readonly int RollForwardStateHash = Animator.StringToHash("Base Layer.Roll Forward");
         private static readonly int RollBackwardStateHash = Animator.StringToHash("Base Layer.Roll Backward");
@@ -34,6 +35,8 @@ namespace SeoulPlay
         [SerializeField, Min(0f)] private float walkSpeed = 2.4f;
         [SerializeField, Min(0f)] private float runSpeed = 5.2f;
         [SerializeField, Min(0f)] private float turnSpeed = 180f;
+        [SerializeField] private bool alignCameraToMovementDirection;
+        [SerializeField, Min(0f)] private float movementCameraTurnSpeed = 180f;
         [SerializeField, Min(0f)] private float gamepadTurnSpeed = 150f;
         [SerializeField, Min(0f)] private float gamepadDeadZone = 0.2f;
         [SerializeField] private float gravity = -20f;
@@ -71,6 +74,7 @@ namespace SeoulPlay
         [SerializeField, Min(0f)] private float rollEndEarlyTime = 0.1f;
         [SerializeField, Min(0f)] private float rollExitBlendTime = 0.12f;
         [SerializeField, Min(0f)] private float rollRecoveryDuration = 0.12f;
+        [SerializeField, Min(0f)] private float rollFireLockoutExtraTime = 0.15f;
 
         [Header("Fire")]
         [SerializeField, Min(0f)] private float upperBodyFireDuration = 0.45f;
@@ -91,6 +95,7 @@ namespace SeoulPlay
         private float activeRollDuration;
         private float rollCooldownTimer;
         private float rollRecoveryTimer;
+        private float rollFireLockoutTimer;
         private float stuckTimer;
         private float startupStuckRecoveryTimer;
         private float upperBodyFireTimer;
@@ -107,12 +112,16 @@ namespace SeoulPlay
         private Vector3 cameraVelocity;
         private Vector3 cameraTargetVelocity;
         private Vector3 smoothedCameraTargetPosition;
+        private float movementReferenceYaw;
         private Vector3 rollDirection;
         private Vector3 rollFacingDirection;
         private Vector3 postRollFacingDirection;
+        private bool hasMovementReferenceYaw;
 
         public bool IsRolling => isRolling;
-        public bool IsRollingOrStartingRoll => isRolling || CanStartRollThisFrame();
+        public bool IsRollingOrStartingRoll => IsFireBlockedByRoll;
+        public bool IsFireBlockedByRoll =>
+            rollFireLockoutTimer > 0f || isRolling || rollRecoveryTimer > 0f || CanStartRollThisFrame();
         private Vector2 lastLocomotionInput;
         private int[] animatorParameterHashes = System.Array.Empty<int>();
         private bool mouseCameraInputEnabled = true;
@@ -190,8 +199,9 @@ namespace SeoulPlay
             var aimPressed = IsAimPressed();
             var isRunning = Input.GetKey(KeyCode.LeftShift) || Input.GetButton("LeftStickClick");
             var moveSpeed = isRunning ? runSpeed : walkSpeed;
-            var worldMove = GetCameraRelativeMove(input);
             var firePressed = IsFirePressed();
+            UpdateMovementReferenceYaw(input, aimPressed, firePressed);
+            var worldMove = GetCameraRelativeMove(input, hasMovementReferenceYaw ? movementReferenceYaw : cameraYaw);
 
             if (characterController.isGrounded && verticalVelocity < 0f)
             {
@@ -201,6 +211,7 @@ namespace SeoulPlay
             verticalVelocity += gravity * Time.deltaTime;
 
             rollCooldownTimer = Mathf.Max(0f, rollCooldownTimer - Time.deltaTime);
+            rollFireLockoutTimer = Mathf.Max(0f, rollFireLockoutTimer - Time.deltaTime);
             if (!isRolling && CanStartRollThisFrame())
             {
                 StartRoll(input);
@@ -277,9 +288,29 @@ namespace SeoulPlay
             cameraPitch = Mathf.Clamp(cameraPitch, minCameraPitch, maxCameraPitch);
         }
 
+        private void UpdateMovementReferenceYaw(Vector2 input, bool aimPressed, bool firePressed)
+        {
+            if (input.sqrMagnitude <= 0.001f || aimPressed || firePressed || isRolling)
+            {
+                hasMovementReferenceYaw = false;
+                return;
+            }
+
+            if (!hasMovementReferenceYaw)
+            {
+                movementReferenceYaw = cameraYaw;
+                hasMovementReferenceYaw = true;
+            }
+        }
+
         private Vector3 GetCameraRelativeMove(Vector2 input)
         {
-            var yawRotation = Quaternion.Euler(0f, cameraYaw, 0f);
+            return GetCameraRelativeMove(input, cameraYaw);
+        }
+
+        private static Vector3 GetCameraRelativeMove(Vector2 input, float referenceYaw)
+        {
+            var yawRotation = Quaternion.Euler(0f, referenceYaw, 0f);
             var forward = yawRotation * Vector3.forward;
             var right = yawRotation * Vector3.right;
             return Vector3.ClampMagnitude(right * input.x + forward * input.y, 1f);
@@ -287,7 +318,7 @@ namespace SeoulPlay
 
         private void UpdateFacing(Vector3 worldMove, Vector2 input, bool aimPressed, bool firePressed)
         {
-            if (firePressed || aimPressed || IsMovingBackward(input))
+            if (firePressed || aimPressed)
             {
                 RotateToward(GetCameraForward());
                 return;
@@ -296,7 +327,18 @@ namespace SeoulPlay
             if (worldMove.sqrMagnitude > 0.001f)
             {
                 SnapToward(worldMove);
+                RotateCameraTowardMovement(worldMove);
             }
+        }
+
+        private void RotateCameraTowardMovement(Vector3 worldMove)
+        {
+            if (!alignCameraToMovementDirection)
+            {
+                return;
+            }
+
+            RotateCameraYawToward(worldMove, movementCameraTurnSpeed);
         }
 
         private void RotateToward(Vector3 direction)
@@ -448,11 +490,6 @@ namespace SeoulPlay
                     || Input.GetAxis("RT") > 0.2f);
         }
 
-        private static bool IsMovingBackward(Vector2 input)
-        {
-            return input.sqrMagnitude > 0.001f && input.y < -0.1f;
-        }
-
         private bool IsRollPressed()
         {
             return Input.GetKeyDown(KeyCode.C) || Input.GetButtonDown("B");
@@ -472,13 +509,16 @@ namespace SeoulPlay
             var rollInput = GetCardinalRollInput(ResolveRollInput(input));
             rollDirection = GetCameraRelativeMove(rollInput).normalized;
             rollFacingDirection = rollDirection;
-            postRollFacingDirection = GetCameraForward();
+            postRollFacingDirection = rollFacingDirection;
             SnapToward(rollFacingDirection);
             activeRollDuration = Mathf.Max(0.05f, rollDuration - rollEndEarlyTime);
             rollTimer = activeRollDuration;
             rollElapsedTime = 0f;
             rollCooldownTimer = rollCooldown;
             rollRecoveryTimer = 0f;
+            rollFireLockoutTimer = Mathf.Max(
+                rollFireLockoutTimer,
+                rollDuration + rollRecoveryDuration + rollFireLockoutExtraTime);
             isRolling = true;
             verticalVelocity = 0f;
             cameraVelocity = Vector3.zero;
@@ -612,8 +652,10 @@ namespace SeoulPlay
             SetAnimatorFloat(SpeedHash, isRunning ? speed01 * 2f : speed01, 0.1f);
             SetAnimatorBool(GroundedHash, characterController.isGrounded);
             SetAnimatorBool(AimHash, driveAnimatorAimFromAimInput && aimPressed);
+            var fireBlockedByRoll = IsRollingOrStartingRoll;
+            SetAnimatorBool(IsFiringHash, firePressed && !fireBlockedByRoll);
 
-            if (firePressed && !wasFirePressed && !isRolling)
+            if (firePressed && !wasFirePressed && !fireBlockedByRoll)
             {
                 upperBodyFireTimer = upperBodyFireDuration;
                 SetUpperBodyFireLayerWeight(1f);
@@ -636,7 +678,7 @@ namespace SeoulPlay
                 return Vector2.zero;
             }
 
-            if (firePressed || aimPressed || IsMovingBackward(input))
+            if (firePressed || aimPressed)
             {
                 return input;
             }

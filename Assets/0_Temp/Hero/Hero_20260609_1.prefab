@@ -15,9 +15,9 @@ GameObject:
   - component: {fileID: 8135100987712734830}
   - component: {fileID: 1184357378514135680}
   - component: {fileID: 2068130548764943176}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Hero_20260609_1
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -36,6 +36,8 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2157666132512578869}
+  - {fileID: 7215164401532260086}
+  - {fileID: 9081576718241946}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!143 &375731632991538319
@@ -79,12 +81,14 @@ MonoBehaviour:
   animator: {fileID: 0}
   modelRoot: {fileID: 0}
   followCamera: {fileID: 0}
-  cameraTarget: {fileID: 0}
+  cameraTarget: {fileID: 7215164401532260086}
   enableRollInput: 1
   enableFireInput: 1
   walkSpeed: 5
   runSpeed: 5.2
   turnSpeed: 180
+  alignCameraToMovementDirection: 0
+  movementCameraTurnSpeed: 180
   gamepadTurnSpeed: 150
   gamepadDeadZone: 0.2
   gravity: -20
@@ -116,6 +120,7 @@ MonoBehaviour:
   rollEndEarlyTime: 0.1
   rollExitBlendTime: 0.12
   rollRecoveryDuration: 0.12
+  rollFireLockoutExtraTime: 0.15
   upperBodyFireDuration: 0.45
   driveAnimatorAimFromAimInput: 0
   useStuckRecovery: 1
@@ -165,9 +170,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e4c4999e756a4bc695381dcde7e8d1e5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  weaponHolder: {fileID: 0}
-  crosshair: {fileID: 0}
-  heroMover: {fileID: 0}
+  weaponHolder: {fileID: 5885411737839657605}
+  crosshair: {fileID: 1184357378514135680}
+  heroMover: {fileID: 2574014399388274395}
   aimCamera: {fileID: 0}
   projectilePrefab: {fileID: 5912344974454636654, guid: e1dffc863f951234c8886eb1bb39e9dd,
     type: 3}
@@ -185,6 +190,7 @@ MonoBehaviour:
   fallbackShotOriginForwardOffset: 0.45
   maxMuzzleOriginDistance: 2
   blockFireWhileRolling: 1
+  rollInputFireLockoutDuration: 1
   useInstantHitDamage: 1
   damageHitMask:
     serializedVersion: 2
@@ -260,6 +266,68 @@ MonoBehaviour:
   onDeath:
     m_PersistentCalls:
       m_Calls: []
+--- !u!1 &3357039309253937105
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7215164401532260086}
+  m_Layer: 8
+  m_Name: CameraTarget
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7215164401532260086
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3357039309253937105}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 1.65, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 5341364007839612343}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &693211000176733756
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 9081576718241946}
+  m_Layer: 8
+  m_Name: ProjectileTarget_Foot
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &9081576718241946
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 693211000176733756}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.05, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 5341364007839612343}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1908163496444492510
 PrefabInstance:
   m_ObjectHideFlags: 0
