@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1961210934331852617}
   m_Layer: 0
-  m_Name: FireBullet_FireMuzzle_FxPosition
+  m_Name: Muzzle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -24,12 +24,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5193820569315649706}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.106, y: 0.431, z: -0.138}
+  m_LocalRotation: {x: 0.50951713, y: 0.3855964, z: -0.52689916, w: 0.560433}
+  m_LocalPosition: {x: 0.603, y: 0.037, z: 0.017}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 8386129199427481335}
+  m_Father: {fileID: 7208150854994703651}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &8107420148776907162
 GameObject:
@@ -61,6 +61,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1233927119048529083}
+  - {fileID: 1961210934331852617}
   m_Father: {fileID: 8386129199427481335}
   m_LocalEulerAnglesHint: {x: -9.483, y: -79.283, z: 94.33}
 --- !u!1 &9158466976890101255
@@ -93,7 +94,6 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 7208150854994703651}
-  - {fileID: 1961210934331852617}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1627333628455727952

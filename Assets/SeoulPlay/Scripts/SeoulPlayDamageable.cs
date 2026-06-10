@@ -15,6 +15,8 @@ namespace SeoulPlay
         [SerializeField] private bool playHitReaction;
         [SerializeField] private string hitTrigger = "Hit";
         [SerializeField] private string deathTrigger = "Die";
+        [SerializeField] private bool blockFireOnHit = true;
+        [SerializeField, Min(0f)] private float hitFireLockoutDuration = 0.35f;
         [SerializeField] private UnityEvent<float> onDamaged = new UnityEvent<float>();
         [SerializeField] private UnityEvent onDeath = new UnityEvent();
 
@@ -60,6 +62,7 @@ namespace SeoulPlay
         {
             currentHealth = maxHealth;
             dead = false;
+            SetDeathFireBlocked(false);
 
             foreach (var targetCollider in GetComponentsInChildren<Collider>())
             {
@@ -87,6 +90,31 @@ namespace SeoulPlay
             {
                 SetAnimatorTrigger(hitTrigger);
             }
+
+            if (blockFireOnHit)
+            {
+                ApplyFireLockout(hitFireLockoutDuration);
+            }
+        }
+
+        private void ApplyFireLockout(float duration)
+        {
+            if (duration <= 0f)
+            {
+                return;
+            }
+
+            var shooter = ResolveComponent<SeoulPlayShooter>();
+            if (shooter != null)
+            {
+                shooter.ApplyHitFireLockout(duration);
+            }
+
+            var heroMover = ResolveComponent<SimpleHeroMover>();
+            if (heroMover != null)
+            {
+                heroMover.ApplyHitFireLockout(duration);
+            }
         }
 
         private void Die()
@@ -97,6 +125,7 @@ namespace SeoulPlay
             }
 
             dead = true;
+            SetDeathFireBlocked(true);
             SetAnimatorTrigger(deathTrigger);
             onDeath.Invoke();
 
@@ -111,6 +140,21 @@ namespace SeoulPlay
             if (destroyOnDeath)
             {
                 Destroy(gameObject, destroyDelay);
+            }
+        }
+
+        private void SetDeathFireBlocked(bool blocked)
+        {
+            var shooter = ResolveComponent<SeoulPlayShooter>();
+            if (shooter != null)
+            {
+                shooter.SetDeathFireBlocked(blocked);
+            }
+
+            var heroMover = ResolveComponent<SimpleHeroMover>();
+            if (heroMover != null)
+            {
+                heroMover.SetDeathFireBlocked(blocked);
             }
         }
 
@@ -138,6 +182,23 @@ namespace SeoulPlay
             }
 
             return false;
+        }
+
+        private T ResolveComponent<T>() where T : Component
+        {
+            var target = GetComponentInParent<T>();
+            if (target != null)
+            {
+                return target;
+            }
+
+            target = GetComponentInChildren<T>();
+            if (target != null)
+            {
+                return target;
+            }
+
+            return transform.root != null ? transform.root.GetComponentInChildren<T>() : null;
         }
     }
 }

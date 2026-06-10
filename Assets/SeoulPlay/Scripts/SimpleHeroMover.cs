@@ -96,6 +96,8 @@ namespace SeoulPlay
         private float rollCooldownTimer;
         private float rollRecoveryTimer;
         private float rollFireLockoutTimer;
+        private float hitFireLockoutTimer;
+        private bool deathFireBlocked;
         private float stuckTimer;
         private float startupStuckRecoveryTimer;
         private float upperBodyFireTimer;
@@ -122,6 +124,8 @@ namespace SeoulPlay
         public bool IsRollingOrStartingRoll => IsFireBlockedByRoll;
         public bool IsFireBlockedByRoll =>
             rollFireLockoutTimer > 0f || isRolling || rollRecoveryTimer > 0f || CanStartRollThisFrame();
+        public bool IsFireBlockedByHit => hitFireLockoutTimer > 0f || deathFireBlocked;
+        public bool IsWeaponFirePoseActive => upperBodyFireTimer > 0f && !isRolling;
         private Vector2 lastLocomotionInput;
         private int[] animatorParameterHashes = System.Array.Empty<int>();
         private bool mouseCameraInputEnabled = true;
@@ -212,6 +216,7 @@ namespace SeoulPlay
 
             rollCooldownTimer = Mathf.Max(0f, rollCooldownTimer - Time.deltaTime);
             rollFireLockoutTimer = Mathf.Max(0f, rollFireLockoutTimer - Time.deltaTime);
+            hitFireLockoutTimer = Mathf.Max(0f, hitFireLockoutTimer - Time.deltaTime);
             if (!isRolling && CanStartRollThisFrame())
             {
                 StartRoll(input);
@@ -458,6 +463,37 @@ namespace SeoulPlay
                 degreesPerSecond * Time.deltaTime);
         }
 
+        public void ApplyHitFireLockout(float duration)
+        {
+            if (duration <= 0f)
+            {
+                return;
+            }
+
+            hitFireLockoutTimer = Mathf.Max(hitFireLockoutTimer, duration);
+            wasFirePressed = true;
+            ResetAnimatorTrigger(FireHash);
+            SetAnimatorBool(IsFiringHash, false);
+            upperBodyFireTimer = 0f;
+            SetUpperBodyFireLayerWeight(0f);
+        }
+
+        public void SetDeathFireBlocked(bool blocked)
+        {
+            deathFireBlocked = blocked;
+            if (!blocked)
+            {
+                return;
+            }
+
+            hitFireLockoutTimer = 0f;
+            wasFirePressed = true;
+            ResetAnimatorTrigger(FireHash);
+            SetAnimatorBool(IsFiringHash, false);
+            upperBodyFireTimer = 0f;
+            SetUpperBodyFireLayerWeight(0f);
+        }
+
         private void SnapToward(Vector3 direction)
         {
             direction.y = 0f;
@@ -484,6 +520,7 @@ namespace SeoulPlay
         private bool IsFirePressed()
         {
             return enableFireInput
+                && !IsFireBlockedByHit
                 && (Input.GetMouseButton(0)
                     || Input.GetKey(KeyCode.F)
                     || Input.GetButton("RB")
@@ -652,10 +689,10 @@ namespace SeoulPlay
             SetAnimatorFloat(SpeedHash, isRunning ? speed01 * 2f : speed01, 0.1f);
             SetAnimatorBool(GroundedHash, characterController.isGrounded);
             SetAnimatorBool(AimHash, driveAnimatorAimFromAimInput && aimPressed);
-            var fireBlockedByRoll = IsRollingOrStartingRoll;
-            SetAnimatorBool(IsFiringHash, firePressed && !fireBlockedByRoll);
+            var fireBlocked = IsRollingOrStartingRoll || IsFireBlockedByHit;
+            SetAnimatorBool(IsFiringHash, firePressed && !fireBlocked);
 
-            if (firePressed && !wasFirePressed && !fireBlockedByRoll)
+            if (firePressed && !wasFirePressed && !fireBlocked)
             {
                 upperBodyFireTimer = upperBodyFireDuration;
                 SetUpperBodyFireLayerWeight(1f);

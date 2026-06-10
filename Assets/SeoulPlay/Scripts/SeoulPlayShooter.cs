@@ -13,7 +13,7 @@ namespace SeoulPlay
         [SerializeField, Min(0.01f)] private float projectileVisualScale = 1f;
         [SerializeField, Min(1f)] private float projectileSpeed = 55f;
         [SerializeField, Min(0.1f)] private float projectileLifetime = 2f;
-        [SerializeField, Min(0f)] private float muzzleForwardOffset = 0.35f;
+        [SerializeField, Min(0f)] private float muzzleForwardOffset;
         [SerializeField] private bool rotateBodyToAim = true;
         [SerializeField] private bool rotateCameraToAim;
         [SerializeField, Min(0f)] private float aimTurnSpeed = 540f;
@@ -46,13 +46,12 @@ namespace SeoulPlay
         [SerializeField, Min(0.01f)] private float projectileTrailDuration = 0.18f;
         [SerializeField, Min(0.001f)] private float projectileTrailWidth = 0.035f;
         [SerializeField] private Color projectileTrailColor = new(1f, 0.78f, 0.18f, 1f);
-        [SerializeField] private bool showDebugOverlay = true;
 
         private readonly RaycastHit[] aimHits = new RaycastHit[16];
         private float nextFireTime;
         private float rollInputFireLockoutTimer;
-        private float lastFireTime = -999f;
-        private string lastFireStatus = "No shots yet";
+        private float hitFireLockoutTimer;
+        private bool deathFireBlocked;
 
         private readonly struct ShotHitResult
         {
@@ -96,14 +95,40 @@ namespace SeoulPlay
         private void Update()
         {
             UpdateRollInputFireLockout();
+            hitFireLockoutTimer = Mathf.Max(0f, hitFireLockoutTimer - Time.deltaTime);
             UpdateAimFacing();
 
-            if (ShouldBlockFireForRoll() || !IsFireHeld() || Time.time < nextFireTime)
+            if (deathFireBlocked || hitFireLockoutTimer > 0f || ShouldBlockFireForRoll() || !IsFireHeld() || Time.time < nextFireTime)
             {
                 return;
             }
 
             Fire();
+        }
+
+        public void ApplyHitFireLockout(float duration)
+        {
+            if (duration <= 0f)
+            {
+                return;
+            }
+
+            hitFireLockoutTimer = Mathf.Max(hitFireLockoutTimer, duration);
+            nextFireTime = Mathf.Max(nextFireTime, Time.time + duration);
+        }
+
+        public void SetDeathFireBlocked(bool blocked)
+        {
+            deathFireBlocked = blocked;
+            if (blocked)
+            {
+                hitFireLockoutTimer = 0f;
+                nextFireTime = float.PositiveInfinity;
+            }
+            else if (float.IsPositiveInfinity(nextFireTime))
+            {
+                nextFireTime = 0f;
+            }
         }
 
         private void UpdateAimFacing()
@@ -149,12 +174,13 @@ namespace SeoulPlay
             var fireRate = weapon != null ? weapon.FireRate : 8f;
             nextFireTime = Time.time + 1f / Mathf.Max(0.01f, fireRate);
 
+            weaponHolder?.SnapMountToFirePose();
+
             var muzzle = weapon != null ? weapon.Muzzle : transform;
             var range = weapon != null ? weapon.Range : 80f;
-            var stableOrigin = GetFallbackShotOrigin(transform.forward);
-            var muzzlePosition = GetSafeMuzzlePosition(muzzle, stableOrigin);
+            var muzzlePosition = ResolveMuzzleWorldPosition(muzzle);
             var direction = GetShotDirection(muzzlePosition, range);
-            var spawnPosition = GetSafeMuzzlePosition(muzzle, GetFallbackShotOrigin(direction)) + direction * muzzleForwardOffset;
+            var spawnPosition = muzzlePosition;
             var damage = weapon != null ? weapon.Damage : 10f;
             var hitResult = useInstantHitDamage
                 ? ApplyInstantHitDamage(spawnPosition, direction, damage, range)
@@ -166,11 +192,9 @@ namespace SeoulPlay
             var launchSpeed = hitResult.HasHit && visualLifetime > 0.001f
                 ? visualDistance / visualLifetime
                 : projectileSpeed;
-            var projectileObject = projectilePrefab != null
-                ? Instantiate(projectilePrefab, spawnPosition, Quaternion.LookRotation(direction, Vector3.up))
-                : CreateDefaultProjectile(spawnPosition, direction);
+            var projectileObject = CreateProjectileObject(muzzle, spawnPosition, direction);
+            spawnPosition = projectileObject.transform.position;
             ApplyShotVfxLayer(projectileObject, false);
-            projectileObject.transform.localScale *= projectileVisualScale;
 
             var projectile = projectileObject.GetComponent<SeoulPlayProjectile>();
             if (projectile == null)
@@ -183,15 +207,13 @@ namespace SeoulPlay
             projectile.ConfigureCollision(!hitResult.HasHit);
             projectile.ConfigureImpactVfx(hitResult.HasHit ? null : impactVfxPrefab, shotVfxLifetime, alignShotVfxToShotDirection);
             projectile.ConfigureForegroundVfxLayer(renderShotVfxAfterNoFogBoss ? shotVfxLayer : -1);
-            SpawnMuzzleVfx(muzzlePosition, direction);
+            SpawnMuzzleVfx(muzzle, muzzlePosition, direction);
             if (hitResult.HasHit)
             {
                 InvokeImpactVfx(hitResult.Point, hitResult.Direction, visualLifetime + instantHitVfxDelayPadding);
             }
 
             AddProjectileTrail(projectileObject);
-            lastFireTime = Time.time;
-            lastFireStatus = $"Fired {projectileObject.name} damage {damage:0.##} {hitResult.Status} dir {direction.x:0.00},{direction.y:0.00},{direction.z:0.00} y {spawnPosition.y:0.00}";
         }
 
         private void SnapBodyToAim()
@@ -331,6 +353,18 @@ namespace SeoulPlay
             return transform.position
                 + Vector3.up * fallbackShotOriginHeight
                 + flatDirection.normalized * fallbackShotOriginForwardOffset;
+        }
+
+        private Vector3 ResolveMuzzleWorldPosition(Transform muzzle)
+        {
+            if (muzzle == null)
+            {
+                return GetFallbackShotOrigin(transform.forward);
+            }
+
+            return muzzle.parent != null
+                ? muzzle.parent.TransformPoint(muzzle.localPosition)
+                : muzzle.position;
         }
 
         private ShotHitResult ApplyInstantHitDamage(Vector3 origin, Vector3 direction, float damage, float range)
@@ -505,22 +539,6 @@ namespace SeoulPlay
                 || GetAxisSafe("RT") > 0.2f;
         }
 
-        private void OnGUI()
-        {
-            if (!showDebugOverlay)
-            {
-                return;
-            }
-
-            var inputHeld = IsFireHeld();
-            var weapon = weaponHolder != null ? weaponHolder.EquippedWeapon : null;
-            GUI.color = Color.yellow;
-            GUI.Label(
-                new Rect(16f, 96f, 520f, 86f),
-                $"Shooter active | Fire input: {inputHeld}\nWeapon: {(weapon != null ? weapon.name : "none")} | Projectile: {(projectilePrefab != null ? projectilePrefab.name : "default")}\nLast shot: {lastFireStatus} ({Time.time - lastFireTime:0.0}s ago)");
-            GUI.color = Color.white;
-        }
-
         private void AddProjectileTrail(GameObject projectileObject)
         {
             if (!addProjectileTrail
@@ -543,20 +561,25 @@ namespace SeoulPlay
             trail.endColor = new Color(projectileTrailColor.r, projectileTrailColor.g, projectileTrailColor.b, 0f);
         }
 
-        private void SpawnMuzzleVfx(Vector3 position, Vector3 direction)
+        private void SpawnMuzzleVfx(Transform muzzle, Vector3 position, Vector3 direction)
         {
             if (muzzleVfxPrefab == null)
             {
                 return;
             }
 
-            var rotation = Quaternion.identity;
+            var rotation = muzzle != null ? muzzle.rotation : Quaternion.identity;
             if (alignShotVfxToShotDirection && direction.sqrMagnitude > 0.001f)
             {
                 rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
             }
 
-            var vfxObject = Instantiate(muzzleVfxPrefab, position, rotation);
+            var vfxObject = muzzle != null
+                ? Instantiate(muzzleVfxPrefab, muzzle)
+                : Instantiate(muzzleVfxPrefab, position, rotation);
+            vfxObject.transform.position = position;
+            vfxObject.transform.rotation = rotation;
+            RestartParticlesAtTransform(vfxObject);
             ApplyShotVfxLayer(vfxObject, false);
             Destroy(vfxObject, shotVfxLifetime);
         }
@@ -577,6 +600,26 @@ namespace SeoulPlay
             var vfxObject = Instantiate(impactVfxPrefab, position, rotation);
             ApplyShotVfxLayer(vfxObject, false);
             Destroy(vfxObject, shotVfxLifetime);
+        }
+
+        private static void RestartParticlesAtTransform(GameObject target)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            var particles = target.GetComponentsInChildren<ParticleSystem>(true);
+            foreach (var particle in particles)
+            {
+                var main = particle.main;
+                main.simulationSpace = ParticleSystemSimulationSpace.Local;
+                main.scalingMode = ParticleSystemScalingMode.Hierarchy;
+
+                particle.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                particle.Clear(true);
+                particle.Play(true);
+            }
         }
 
         private void ApplyShotVfxLayer(GameObject target, bool includeWholeObject)
@@ -730,6 +773,56 @@ namespace SeoulPlay
             var collider = projectileObject.GetComponent<SphereCollider>();
             collider.isTrigger = true;
 
+            return projectileObject;
+        }
+
+        private GameObject CreateProjectileObject(Transform muzzle, Vector3 fallbackPosition, Vector3 direction)
+        {
+            var rotation = Quaternion.LookRotation(direction, Vector3.up);
+            var projectileObject = new GameObject(projectilePrefab != null ? projectilePrefab.name + "_ShotRoot" : "SeoulPlay Bullet");
+            if (muzzle != null)
+            {
+                projectileObject.transform.SetParent(muzzle, false);
+                projectileObject.transform.localPosition = Vector3.zero;
+                projectileObject.transform.localRotation = Quaternion.identity;
+                projectileObject.transform.localScale = Vector3.one;
+
+                var spawnPosition = projectileObject.transform.position;
+                projectileObject.transform.SetParent(null, true);
+                projectileObject.transform.SetPositionAndRotation(spawnPosition, rotation);
+            }
+            else
+            {
+                projectileObject.transform.SetPositionAndRotation(fallbackPosition, rotation);
+            }
+
+            if (projectilePrefab == null)
+            {
+                var defaultPosition = projectileObject.transform.position;
+                Destroy(projectileObject);
+                return CreateDefaultProjectile(defaultPosition, direction);
+            }
+
+            var visualObject = Instantiate(projectilePrefab, projectileObject.transform);
+            visualObject.name = projectilePrefab.name + "_Visual";
+            visualObject.transform.localPosition = Vector3.zero;
+            visualObject.transform.localRotation = Quaternion.identity;
+            visualObject.transform.localScale = Vector3.one * projectileVisualScale;
+
+            var prefabProjectile = visualObject.GetComponent<SeoulPlayProjectile>();
+            if (prefabProjectile != null)
+            {
+                Destroy(prefabProjectile);
+            }
+
+            var prefabCollider = visualObject.GetComponent<Collider>();
+            if (prefabCollider != null)
+            {
+                prefabCollider.enabled = false;
+            }
+
+            projectileObject.AddComponent<SeoulPlayProjectile>();
+            RestartParticlesAtTransform(visualObject);
             return projectileObject;
         }
     }

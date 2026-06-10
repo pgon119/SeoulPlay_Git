@@ -5,8 +5,17 @@ namespace SeoulPlay
     [DisallowMultipleComponent]
     public sealed class SeoulPlayWeaponHolder : MonoBehaviour
     {
+        private static readonly string[] RightHandFallbackNames =
+        {
+            "hand_r",
+            "RightHand",
+            "mixamorig:RightHand",
+            "Bip001 R Hand"
+        };
+
         [Header("References")]
         [SerializeField] private Animator animator;
+        [SerializeField] private SimpleHeroMover heroMover;
         [SerializeField] private GameObject weaponPrefab;
         [SerializeField] private Transform weaponMount;
 
@@ -16,10 +25,15 @@ namespace SeoulPlay
         [SerializeField] private Vector3 mountLocalPosition = new(0.05f, 0.02f, 0.08f);
         [SerializeField] private Vector3 mountLocalEulerAngles = new(0f, 90f, 0f);
 
+        [Header("Fire Equip Point")]
+        [SerializeField] private Vector3 fireMountLocalPosition = new(0.05f, 0.02f, 0.08f);
+        [SerializeField] private Vector3 fireMountLocalEulerAngles = new(0f, 90f, 0f);
+        [SerializeField, Min(0f)] private float mountPoseBlendSpeed = 18f;
+
         [Header("Equipped Weapon")]
         [SerializeField] private bool equipOnAwake = true;
         [SerializeField, Min(0f)] private float defaultWeaponDamage = 1f;
-        [SerializeField] private string preferredMuzzleName = "FireBullet_FireMuzzle_FxPosition";
+        [SerializeField] private string preferredMuzzleName = "Muzzle";
         [SerializeField] private Vector3 weaponLocalPosition = Vector3.zero;
         [SerializeField] private Vector3 weaponLocalEulerAngles = Vector3.zero;
         [SerializeField] private Vector3 weaponLocalScale = Vector3.one;
@@ -31,6 +45,7 @@ namespace SeoulPlay
         [SerializeField] private Vector3 prototypeLocalScale = new(0.12f, 0.16f, 0.55f);
 
         private SeoulPlayWeapon equippedWeapon;
+        private float forcedFirePoseTimer;
         public SeoulPlayWeapon EquippedWeapon => equippedWeapon;
         public Transform WeaponMount => weaponMount;
 
@@ -41,7 +56,13 @@ namespace SeoulPlay
                 animator = GetComponentInChildren<Animator>();
             }
 
+            if (heroMover == null)
+            {
+                heroMover = GetComponent<SimpleHeroMover>();
+            }
+
             EnsureWeaponMount();
+            ApplyMountPose(false);
 
             if (equipOnAwake)
             {
@@ -55,6 +76,18 @@ namespace SeoulPlay
             {
                 EquipDefaultWeapon();
             }
+        }
+
+        private void LateUpdate()
+        {
+            ApplyMountPose(true);
+            forcedFirePoseTimer = Mathf.Max(0f, forcedFirePoseTimer - Time.deltaTime);
+        }
+
+        public void SnapMountToFirePose(float duration = 0.08f)
+        {
+            forcedFirePoseTimer = Mathf.Max(forcedFirePoseTimer, duration);
+            ApplyMountPose(false);
         }
 
         public void EquipDefaultWeapon()
@@ -133,15 +166,21 @@ namespace SeoulPlay
 
         private void EnsureWeaponMount()
         {
-            if (weaponMount != null)
-            {
-                return;
-            }
-
             var parent = GetMountParent();
             if (parent == null)
             {
                 parent = transform;
+            }
+
+            if (weaponMount != null)
+            {
+                if (weaponMount.parent != parent)
+                {
+                    weaponMount.SetParent(parent, false);
+                    ApplyMountPose(false);
+                }
+
+                return;
             }
 
             var existing = parent.Find(mountName);
@@ -152,19 +191,55 @@ namespace SeoulPlay
             weaponMount.localScale = Vector3.one;
         }
 
+        private void ApplyMountPose(bool interpolate)
+        {
+            if (weaponMount == null)
+            {
+                return;
+            }
+
+            var useFirePose = forcedFirePoseTimer > 0f || (heroMover != null && heroMover.IsWeaponFirePoseActive);
+            var targetPosition = useFirePose ? fireMountLocalPosition : mountLocalPosition;
+            var targetRotation = Quaternion.Euler(useFirePose ? fireMountLocalEulerAngles : mountLocalEulerAngles);
+
+            if (!interpolate || mountPoseBlendSpeed <= 0f)
+            {
+                weaponMount.localPosition = targetPosition;
+                weaponMount.localRotation = targetRotation;
+                weaponMount.localScale = Vector3.one;
+                return;
+            }
+
+            var blend = 1f - Mathf.Exp(-mountPoseBlendSpeed * Time.deltaTime);
+            weaponMount.localPosition = Vector3.Lerp(weaponMount.localPosition, targetPosition, blend);
+            weaponMount.localRotation = Quaternion.Slerp(weaponMount.localRotation, targetRotation, blend);
+            weaponMount.localScale = Vector3.one;
+        }
+
         private Transform GetMountParent()
         {
-            if (animator == null)
+            Transform humanoidBone = null;
+            if (animator != null && animator.isHuman && animator.avatar != null && animator.avatar.isValid)
             {
-                return null;
+                humanoidBone = animator.GetBoneTransform(mountBone);
             }
 
-            if (!animator.isHuman || animator.avatar == null || !animator.avatar.isValid)
+            if (humanoidBone != null)
             {
-                return null;
+                return humanoidBone;
             }
 
-            return animator.GetBoneTransform(mountBone);
+            var searchRoot = animator != null ? animator.transform : transform;
+            foreach (var fallbackName in RightHandFallbackNames)
+            {
+                var fallback = FindChildRecursive(searchRoot, fallbackName);
+                if (fallback != null)
+                {
+                    return fallback;
+                }
+            }
+
+            return null;
         }
 
         private GameObject CreatePrototypeWeapon()
@@ -199,6 +274,11 @@ namespace SeoulPlay
             if (muzzle == null)
             {
                 muzzle = FindChildRecursive(weaponRoot, "Muzzle");
+            }
+
+            if (muzzle == null)
+            {
+                muzzle = FindChildRecursive(weaponRoot, "FireBullet_FireMuzzle_FxPosition");
             }
 
             if (muzzle == null)

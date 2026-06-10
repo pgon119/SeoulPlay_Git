@@ -11,6 +11,7 @@ namespace SeoulPlay
         [SerializeField, Min(0f)] private float spinDegreesPerSecond;
         [SerializeField, Min(0.01f)] private float castRadius = 0.18f;
         [SerializeField] private bool collisionEnabled = true;
+        [SerializeField] private bool hitTriggerColliders;
         [SerializeField] private bool showHitDebug;
         [Header("Impact Feedback")]
         [SerializeField] private GameObject impactVfxPrefab;
@@ -77,6 +78,16 @@ namespace SeoulPlay
             {
                 projectileCollider.enabled = enabled;
             }
+        }
+
+        public void ConfigureTriggerHits(bool enabled)
+        {
+            hitTriggerColliders = enabled;
+        }
+
+        public void ConfigureDebug(bool enabled)
+        {
+            showHitDebug = enabled;
         }
 
         public void ConfigureImpactVfx(GameObject prefab, float vfxLifetime = 3f, bool alignToTravelDirection = true)
@@ -176,7 +187,7 @@ namespace SeoulPlay
                 travelHits,
                 distance,
                 Physics.DefaultRaycastLayers,
-                QueryTriggerInteraction.Ignore);
+                hitTriggerColliders ? QueryTriggerInteraction.Collide : QueryTriggerInteraction.Ignore);
 
             var bestDistance = float.PositiveInfinity;
             Collider bestCollider = null;
@@ -212,7 +223,7 @@ namespace SeoulPlay
                 return;
             }
 
-            var damageable = other.GetComponentInParent<SeoulPlayDamageable>();
+            var damageable = ResolveDamageable(other);
             if (damageable != null && damageable.IsAlive)
             {
                 damageable.TakeDamage(damage, hitDirection, ignoredRoot);
@@ -256,9 +267,38 @@ namespace SeoulPlay
         private bool ShouldIgnoreCollider(Collider other)
         {
             return other == null
-                || other.isTrigger
+                || (!hitTriggerColliders && other.isTrigger)
                 || other.transform.IsChildOf(transform)
                 || (ignoredRoot != null && other.transform.IsChildOf(ignoredRoot));
+        }
+
+        private static SeoulPlayDamageable ResolveDamageable(Collider targetCollider)
+        {
+            if (targetCollider == null)
+            {
+                return null;
+            }
+
+            var damageable = targetCollider.GetComponentInParent<SeoulPlayDamageable>();
+            if (damageable != null)
+            {
+                return damageable;
+            }
+
+            var parent = targetCollider.transform.parent;
+            while (parent != null)
+            {
+                damageable = parent.GetComponentInChildren<SeoulPlayDamageable>();
+                if (damageable != null)
+                {
+                    return damageable;
+                }
+
+                parent = parent.parent;
+            }
+
+            var root = targetCollider.transform.root;
+            return root != null ? root.GetComponentInChildren<SeoulPlayDamageable>() : null;
         }
 
         private float GetCastRadius()

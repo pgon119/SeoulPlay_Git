@@ -583,10 +583,11 @@ namespace SeoulPlay.Editor
 
             var serializedWeaponHolder = new SerializedObject(weaponHolder);
             serializedWeaponHolder.FindProperty("animator").objectReferenceValue = animator;
+            serializedWeaponHolder.FindProperty("heroMover").objectReferenceValue = mover;
             serializedWeaponHolder.FindProperty("weaponPrefab").objectReferenceValue =
                 AssetDatabase.LoadAssetAtPath<GameObject>(RiflePrefabPath);
             serializedWeaponHolder.FindProperty("defaultWeaponDamage").floatValue = HeroAttackDamage;
-            serializedWeaponHolder.FindProperty("preferredMuzzleName").stringValue = "FireBullet_FireMuzzle_FxPosition";
+            serializedWeaponHolder.FindProperty("preferredMuzzleName").stringValue = "Muzzle";
             serializedWeaponHolder.ApplyModifiedPropertiesWithoutUndo();
 
             var serializedShooter = new SerializedObject(shooter);
