@@ -37,7 +37,7 @@ public static class SeoulPlayDamageTestSetup
 
         Selection.activeGameObject = cube;
         EditorUtility.SetDirty(cube);
-        Debug.Log("Cube sphere damage test is ready. Enter Play Mode to fire a damage sphere every second.", cube);
+        Debug.Log("Cube sphere damage test is ready. Enter Play Mode to loop two small damage spheres, then one heavy knockback sphere.", cube);
     }
 
     private static SeoulPlayDamageable FindDamageableTarget(GameObject shooterObject)

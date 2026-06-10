@@ -96,9 +96,15 @@ namespace SeoulPlay
         {
             UpdateRollInputFireLockout();
             hitFireLockoutTimer = Mathf.Max(0f, hitFireLockoutTimer - Time.deltaTime);
+
+            if (deathFireBlocked || hitFireLockoutTimer > 0f || ShouldBlockFireForRoll())
+            {
+                return;
+            }
+
             UpdateAimFacing();
 
-            if (deathFireBlocked || hitFireLockoutTimer > 0f || ShouldBlockFireForRoll() || !IsFireHeld() || Time.time < nextFireTime)
+            if (!IsFireHeld() || Time.time < nextFireTime)
             {
                 return;
             }

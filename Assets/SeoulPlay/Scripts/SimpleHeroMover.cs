@@ -75,6 +75,7 @@ namespace SeoulPlay
         [SerializeField, Min(0f)] private float rollExitBlendTime = 0.12f;
         [SerializeField, Min(0f)] private float rollRecoveryDuration = 0.12f;
         [SerializeField, Min(0f)] private float rollFireLockoutExtraTime = 0.15f;
+        [SerializeField, Min(0f)] private float knockbackExitBlendTime = 0.12f;
 
         [Header("Fire")]
         [SerializeField, Min(0f)] private float upperBodyFireDuration = 0.45f;
@@ -97,6 +98,10 @@ namespace SeoulPlay
         private float rollRecoveryTimer;
         private float rollFireLockoutTimer;
         private float hitFireLockoutTimer;
+        private float knockbackTimer;
+        private float knockbackDuration;
+        private float knockbackDistance;
+        private float knockbackMovedDistance;
         private bool deathFireBlocked;
         private float stuckTimer;
         private float startupStuckRecoveryTimer;
@@ -118,14 +123,16 @@ namespace SeoulPlay
         private Vector3 rollDirection;
         private Vector3 rollFacingDirection;
         private Vector3 postRollFacingDirection;
+        private Vector3 knockbackDirection;
         private bool hasMovementReferenceYaw;
 
         public bool IsRolling => isRolling;
         public bool IsRollingOrStartingRoll => IsFireBlockedByRoll;
         public bool IsFireBlockedByRoll =>
-            rollFireLockoutTimer > 0f || isRolling || rollRecoveryTimer > 0f || CanStartRollThisFrame();
+            deathFireBlocked || rollFireLockoutTimer > 0f || isRolling || rollRecoveryTimer > 0f || CanStartRollThisFrame();
         public bool IsFireBlockedByHit => hitFireLockoutTimer > 0f || deathFireBlocked;
-        public bool IsWeaponFirePoseActive => upperBodyFireTimer > 0f && !isRolling;
+        public bool IsKnockbackActive => knockbackTimer > 0f;
+        public bool IsWeaponFirePoseActive => upperBodyFireTimer > 0f && !isRolling && !deathFireBlocked;
         private Vector2 lastLocomotionInput;
         private int[] animatorParameterHashes = System.Array.Empty<int>();
         private bool mouseCameraInputEnabled = true;
@@ -194,6 +201,12 @@ namespace SeoulPlay
 
         private void Update()
         {
+            if (deathFireBlocked)
+            {
+                UpdateDeathLockedState();
+                return;
+            }
+
             startupStuckRecoveryTimer = Mathf.Max(0f, startupStuckRecoveryTimer - Time.deltaTime);
             UpdateCameraInput();
 
@@ -217,6 +230,14 @@ namespace SeoulPlay
             rollCooldownTimer = Mathf.Max(0f, rollCooldownTimer - Time.deltaTime);
             rollFireLockoutTimer = Mathf.Max(0f, rollFireLockoutTimer - Time.deltaTime);
             hitFireLockoutTimer = Mathf.Max(0f, hitFireLockoutTimer - Time.deltaTime);
+            if (IsKnockbackActive)
+            {
+                UpdateKnockback();
+                UpdateAnimator(Vector2.zero, false, false, false);
+                ResetModelRootTransform();
+                return;
+            }
+
             if (!isRolling && CanStartRollThisFrame())
             {
                 StartRoll(input);
@@ -245,7 +266,7 @@ namespace SeoulPlay
 
         private void LateUpdate()
         {
-            if (isRolling && useRollRootMotion)
+            if (!deathFireBlocked && isRolling && useRollRootMotion)
             {
                 CommitModelRootOffset(false);
             }
@@ -486,12 +507,78 @@ namespace SeoulPlay
                 return;
             }
 
+            isRolling = false;
+            knockbackTimer = 0f;
+            rollTimer = 0f;
+            rollRecoveryTimer = 0f;
+            rollCooldownTimer = 0f;
+            rollFireLockoutTimer = 0f;
             hitFireLockoutTimer = 0f;
+            wasFirePressed = true;
+            ResetAnimatorTrigger(FireHash);
+            SetAnimatorBool(RollingHash, false);
+            SetAnimatorBool(IsFiringHash, false);
+            SetAnimatorBool(AimHash, false);
+            upperBodyFireTimer = 0f;
+            SetUpperBodyFireLayerWeight(0f);
+            SetAnimatorRootMotion(false);
+            StopLocomotionAnimatorParameters();
+        }
+
+        public void ApplyKnockback(Vector3 direction, float distance, float duration)
+        {
+            if (deathFireBlocked)
+            {
+                return;
+            }
+
+            direction.y = 0f;
+            if (direction.sqrMagnitude <= 0.001f || distance <= 0f || duration <= 0f)
+            {
+                return;
+            }
+
+            knockbackDirection = direction.normalized;
+            knockbackDistance = distance;
+            knockbackDuration = duration;
+            knockbackTimer = duration;
+            knockbackMovedDistance = 0f;
+            hitFireLockoutTimer = Mathf.Max(hitFireLockoutTimer, duration);
             wasFirePressed = true;
             ResetAnimatorTrigger(FireHash);
             SetAnimatorBool(IsFiringHash, false);
             upperBodyFireTimer = 0f;
             SetUpperBodyFireLayerWeight(0f);
+            RotateToward(-knockbackDirection);
+        }
+
+        private void UpdateKnockback()
+        {
+            if (characterController == null)
+            {
+                knockbackTimer = 0f;
+                return;
+            }
+
+            if (characterController.isGrounded && verticalVelocity < 0f)
+            {
+                verticalVelocity = -1f;
+            }
+
+            verticalVelocity += gravity * Time.deltaTime;
+            var elapsed = Mathf.Clamp(knockbackDuration - knockbackTimer + Time.deltaTime, 0f, knockbackDuration);
+            var normalizedTime = knockbackDuration <= 0.001f ? 1f : Mathf.Clamp01(elapsed / knockbackDuration);
+            var easedTime = 1f - Mathf.Pow(1f - normalizedTime, 2f);
+            var targetDistance = knockbackDistance * easedTime;
+            var horizontalDelta = Mathf.Max(0f, targetDistance - knockbackMovedDistance);
+            knockbackMovedDistance = targetDistance;
+            characterController.Move(knockbackDirection * horizontalDelta + Vector3.up * verticalVelocity * Time.deltaTime);
+            RotateToward(-knockbackDirection);
+            knockbackTimer = Mathf.Max(0f, knockbackTimer - Time.deltaTime);
+            if (knockbackTimer <= 0f)
+            {
+                CrossFadeToLocomotion(knockbackExitBlendTime);
+            }
         }
 
         private void SnapToward(Vector3 direction)
@@ -543,7 +630,7 @@ namespace SeoulPlay
 
         private void StartRoll(Vector2 input)
         {
-            var rollInput = GetCardinalRollInput(ResolveRollInput(input));
+            var rollInput = GetCardinalRollInput(input);
             rollDirection = GetCameraRelativeMove(rollInput).normalized;
             rollFacingDirection = rollDirection;
             postRollFacingDirection = rollFacingDirection;
@@ -567,28 +654,6 @@ namespace SeoulPlay
             SetUpperBodyFireLayerWeight(0f);
             SetAnimatorRootMotion(useRollRootMotion);
             PlayRollAnimation(rollInput);
-        }
-
-        private Vector2 ResolveRollInput(Vector2 input)
-        {
-            if (animator != null)
-            {
-                var animatedInput = new Vector2(
-                    HasAnimatorParameter(MoveXHash) ? animator.GetFloat(MoveXHash) : 0f,
-                    HasAnimatorParameter(MoveZHash) ? animator.GetFloat(MoveZHash) : 0f);
-
-                if (Mathf.Abs(animatedInput.x) > 0.2f)
-                {
-                    return new Vector2(Mathf.Sign(animatedInput.x), 0f);
-                }
-            }
-
-            if (Mathf.Abs(lastLocomotionInput.x) > 0.2f)
-            {
-                return new Vector2(Mathf.Sign(lastLocomotionInput.x), 0f);
-            }
-
-            return input;
         }
 
         private static Vector2 GetCardinalRollInput(Vector2 input)
@@ -705,6 +770,39 @@ namespace SeoulPlay
             if (!isRolling && input.sqrMagnitude > 0.001f)
             {
                 lastLocomotionInput = input;
+            }
+        }
+
+        private void UpdateDeathLockedState()
+        {
+            StopLocomotionAnimatorParameters();
+            SetAnimatorBool(GroundedHash, characterController == null || characterController.isGrounded);
+            SetAnimatorBool(AimHash, false);
+            SetAnimatorBool(IsFiringHash, false);
+            SetAnimatorBool(RollingHash, false);
+            SetUpperBodyFireLayerWeight(0f);
+        }
+
+        private void StopLocomotionAnimatorParameters()
+        {
+            if (animator == null)
+            {
+                return;
+            }
+
+            if (HasAnimatorParameter(MoveXHash))
+            {
+                animator.SetFloat(MoveXHash, 0f);
+            }
+
+            if (HasAnimatorParameter(MoveZHash))
+            {
+                animator.SetFloat(MoveZHash, 0f);
+            }
+
+            if (HasAnimatorParameter(SpeedHash))
+            {
+                animator.SetFloat(SpeedHash, 0f);
             }
         }
 
@@ -1223,9 +1321,14 @@ namespace SeoulPlay
 
         private void CrossFadeToLocomotion()
         {
+            CrossFadeToLocomotion(rollExitBlendTime);
+        }
+
+        private void CrossFadeToLocomotion(float blendTime)
+        {
             if (HasAnimatorState(0, LocomotionStateHash))
             {
-                animator.CrossFade(LocomotionStateHash, rollExitBlendTime, 0);
+                animator.CrossFade(LocomotionStateHash, blendTime, 0);
             }
         }
 
