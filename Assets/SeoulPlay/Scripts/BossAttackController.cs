@@ -201,6 +201,9 @@ namespace SeoulPlay
         [SerializeField, Min(0f)] private float attack3ImpactForwardOffset = 1.2f;
         [SerializeField, Min(0f)] private float attack3JumpStartDelay = 0.12f;
         [SerializeField, Min(0f)] private float attack3JumpArcHeight = 1.2f;
+        [SerializeField] private Vector3 attack3EndPositionOffset;
+        [SerializeField] private bool attack3PreserveImpactReferencePosition = true;
+        [SerializeField] private Transform attack3PositionReference;
         [SerializeField] private GameObject attack3ImpactVfxPrefab;
         [SerializeField, Min(0.1f)] private float attack3VfxDuration = 2f;
         [SerializeField, Min(0f)] private float attack3VfxDestroyDelay = 3f;
@@ -230,6 +233,9 @@ namespace SeoulPlay
         private bool attack2EarthBlastFired;
         private bool attack3SlamFired;
         private bool attack3ImpactVfxFired;
+        private bool attack3EndPositionOffsetApplied;
+        private bool hasAttack3ImpactReferencePosition;
+        private Vector3 attack3ImpactReferencePosition;
         private Coroutine attack1BulletFanRoutine;
         private Coroutine attack3JumpRoutine;
         private Material attack1BulletMaterial;
@@ -265,6 +271,11 @@ namespace SeoulPlay
             {
                 var holdPoint = FindChildTransform("Attack_1_RockHoldPoint");
                 projectileSpawnPoint = holdPoint != null ? holdPoint : heldRockObject != null ? heldRockObject.transform : null;
+            }
+
+            if (attack3PositionReference == null)
+            {
+                attack3PositionReference = FindChildTransform("root");
             }
 
             HideHeldRock();
@@ -477,6 +488,11 @@ namespace SeoulPlay
 
             if (Time.time >= attackLockedUntil)
             {
+                if (currentAttackType == BossAttackType.Attack3JumpSlam)
+                {
+                    ApplyAttack3EndPositionOffset();
+                }
+
                 cooldownEndsAt = Time.time + globalAttackCooldown;
                 ChangeState(BossState.Cooldown);
             }
@@ -589,6 +605,8 @@ namespace SeoulPlay
             attack2EarthBlastFired = true;
             attack3SlamFired = false;
             attack3ImpactVfxFired = false;
+            attack3EndPositionOffsetApplied = false;
+            hasAttack3ImpactReferencePosition = false;
             DestroyAttack1RockClone();
             HideHeldRock();
             currentChaseSpeed = 0f;
@@ -629,6 +647,10 @@ namespace SeoulPlay
             {
                 StopAttack1BulletFan();
             }
+            else if (currentAttackType == BossAttackType.Attack3JumpSlam)
+            {
+                ApplyAttack3EndPositionOffset();
+            }
         }
 
         public void Attack01_End()
@@ -665,6 +687,7 @@ namespace SeoulPlay
         {
             FireAttack3ImpactVfx();
             DamageAttack3Impact();
+            CaptureAttack3ImpactReferencePosition();
         }
 
         public void FireAttack3ImpactVfx()
@@ -1268,6 +1291,62 @@ namespace SeoulPlay
 
             StopCoroutine(attack1BulletFanRoutine);
             attack1BulletFanRoutine = null;
+        }
+
+        private void ApplyAttack3EndPositionOffset()
+        {
+            if (attack3EndPositionOffsetApplied)
+            {
+                return;
+            }
+
+            attack3EndPositionOffsetApplied = true;
+            var offset = transform.TransformDirection(attack3EndPositionOffset);
+            if (attack3PreserveImpactReferencePosition && hasAttack3ImpactReferencePosition)
+            {
+                var positionReference = GetAttack3PositionReference();
+                if (positionReference != null)
+                {
+                    var referenceDelta = attack3ImpactReferencePosition - positionReference.position;
+                    referenceDelta.y = 0f;
+                    offset += referenceDelta;
+                }
+            }
+
+            if (offset.sqrMagnitude <= 0.000001f)
+            {
+                return;
+            }
+
+            transform.position += offset;
+        }
+
+        private void CaptureAttack3ImpactReferencePosition()
+        {
+            if (!attack3PreserveImpactReferencePosition)
+            {
+                return;
+            }
+
+            var positionReference = GetAttack3PositionReference();
+            if (positionReference == null)
+            {
+                return;
+            }
+
+            attack3ImpactReferencePosition = positionReference.position;
+            hasAttack3ImpactReferencePosition = true;
+        }
+
+        private Transform GetAttack3PositionReference()
+        {
+            if (attack3PositionReference != null)
+            {
+                return attack3PositionReference;
+            }
+
+            attack3PositionReference = FindChildTransform("root");
+            return attack3PositionReference;
         }
 
         private void SpawnAttack1Bullet(Vector3 spawnPosition, Vector3 direction)

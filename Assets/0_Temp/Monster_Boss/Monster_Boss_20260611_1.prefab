@@ -320,6 +320,9 @@ MonoBehaviour:
   attack3ImpactForwardOffset: 1.2
   attack3JumpStartDelay: 0.12
   attack3JumpArcHeight: 4
+  attack3EndPositionOffset: {x: 0, y: 0, z: 0}
+  attack3PreserveImpactReferencePosition: 1
+  attack3PositionReference: {fileID: 0}
   attack3ImpactVfxPrefab: {fileID: 7907260701345176331, guid: 5d3878ca1f07ec746acd7ad85b97ed7e,
     type: 3}
   attack3VfxDuration: 2

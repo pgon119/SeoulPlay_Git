@@ -2534,6 +2534,9 @@ MonoBehaviour:
   attack3ImpactForwardOffset: 1.2
   attack3JumpStartDelay: 0.12
   attack3JumpArcHeight: 4
+  attack3EndPositionOffset: {x: 0, y: 0, z: 0}
+  attack3PreserveImpactReferencePosition: 1
+  attack3PositionReference: {fileID: 0}
   attack3ImpactVfxPrefab: {fileID: 7907260701345176331, guid: 5d3878ca1f07ec746acd7ad85b97ed7e,
     type: 3}
   attack3VfxDuration: 2
@@ -3092,6 +3095,11 @@ PrefabInstance:
         type: 3}
       propertyPath: attack1BulletInterval
       value: 0.03
+      objectReference: {fileID: 0}
+    - target: {fileID: 5397252070933486704, guid: 79c0a711f46614a46887428a2a5d3685,
+        type: 3}
+      propertyPath: attack3EndPositionOffset.z
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5397252070933486704, guid: 79c0a711f46614a46887428a2a5d3685,
         type: 3}
