@@ -16,7 +16,7 @@ namespace SeoulPlay
 
         public void Attack01_Hit()
         {
-            Attack01_CreateRock();
+            Attack01_FireBulletFan();
         }
 
         public void Attack01_ShowRock()
@@ -67,15 +67,25 @@ namespace SeoulPlay
 
         public void Attack01_ThrowRock()
         {
-            if (attackController != null)
-            {
-                attackController.FireAttack1Rock();
-            }
+            Attack01_FireBulletFan();
         }
 
         public void ThrowRock()
         {
             Attack01_ThrowRock();
+        }
+
+        public void Attack01_FireBulletFan()
+        {
+            if (attackController != null)
+            {
+                attackController.FireAttack1BulletFan();
+            }
+        }
+
+        public void FireBulletFan()
+        {
+            Attack01_FireBulletFan();
         }
 
         public void Attack01_HideRock()

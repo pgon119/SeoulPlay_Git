@@ -234,7 +234,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   animator: {fileID: 2220111698376039824}
   target: {fileID: 0}
-  projectileSpawnPoint: {fileID: 0}
+  projectileSpawnPoint: {fileID: 8014953901527321050}
   rockProjectilePrefab: {fileID: 6630980314950899450, guid: d923193caf86fa14c9064ef3beb6a93c,
     type: 3}
   heldRockObject: {fileID: 0}
@@ -284,6 +284,18 @@ MonoBehaviour:
   projectileVisualOffsetDuration: 0.35
   spawnForwardOffset: 0.8
   defaultRockScale: 0.45
+  attack1BulletPrefab: {fileID: 100000, guid: 8d4b09c0e5e84ad3a97dbadf6c3b1f02, type: 3}
+  attack1BulletCount: 10
+  attack1FanAngle: 180
+  attack1BulletInterval: 0.08
+  attack1BulletDamage: 10
+  attack1BulletSpeed: 8
+  attack1BulletLifetime: 4
+  attack1BulletRadius: 0.22
+  attack1BulletSpawnHeight: 1.1
+  attack1BulletSpawnForwardOffset: 1
+  attack1BulletCenterOffset: {x: 0, y: 0, z: 0.76}
+  attack1BulletColor: {r: 1, g: 0.25, b: 0.12, a: 1}
   attack2Damage: 18
   attack2Range: 8
   attack2Radius: 1.5
@@ -307,7 +319,6 @@ MonoBehaviour:
   attack3JumpDistance: 6
   attack3ImpactForwardOffset: 1.2
   attack3JumpStartDelay: 0.12
-  attack3JumpDuration: 1
   attack3JumpArcHeight: 4
   attack3ImpactVfxPrefab: {fileID: 7907260701345176331, guid: 5d3878ca1f07ec746acd7ad85b97ed7e,
     type: 3}

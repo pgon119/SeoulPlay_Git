@@ -269,7 +269,8 @@ namespace SeoulPlay
             return other == null
                 || (!hitTriggerColliders && other.isTrigger)
                 || other.transform.IsChildOf(transform)
-                || (ignoredRoot != null && other.transform.IsChildOf(ignoredRoot));
+                || (ignoredRoot != null && other.transform.IsChildOf(ignoredRoot))
+                || other.GetComponentInParent<SeoulPlayProjectile>() != null;
         }
 
         private static SeoulPlayDamageable ResolveDamageable(Collider targetCollider)

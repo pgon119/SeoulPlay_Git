@@ -16,6 +16,7 @@ namespace SeoulPlay
         private static readonly int Attack02Hash = Animator.StringToHash("Attack02");
         private static readonly int Attack03Hash = Animator.StringToHash("Attack03");
         private static readonly int Attack03StateHash = Animator.StringToHash("Attack_03");
+        private const string Attack03HitEventName = "Attack03_Hit";
         private static readonly int IsMovingHash = Animator.StringToHash("IsMoving");
         private static readonly int MoveSpeedHash = Animator.StringToHash("MoveSpeed");
 
@@ -161,6 +162,20 @@ namespace SeoulPlay
         [SerializeField, Min(0.05f), Tooltip("돌 프리팹에 별도 스케일이 없을 때 사용하는 기본 크기입니다.")]
         private float defaultRockScale = 0.45f;
 
+        [Header("Attack 1 - Bullet Fan")]
+        [SerializeField] private GameObject attack1BulletPrefab;
+        [SerializeField, Min(1)] private int attack1BulletCount = 10;
+        [SerializeField, Range(0f, 180f)] private float attack1FanAngle = 45f;
+        [SerializeField, Min(0f)] private float attack1BulletInterval = 0.08f;
+        [SerializeField, Min(0f)] private float attack1BulletDamage = 10f;
+        [SerializeField, Min(0.1f)] private float attack1BulletSpeed = 8f;
+        [SerializeField, Min(0.1f)] private float attack1BulletLifetime = 4f;
+        [SerializeField, Min(0.02f)] private float attack1BulletRadius = 0.22f;
+        [SerializeField, Min(0f)] private float attack1BulletSpawnHeight = 1.1f;
+        [SerializeField, Min(0f)] private float attack1BulletSpawnForwardOffset = 1f;
+        [SerializeField] private Vector3 attack1BulletCenterOffset = new Vector3(0f, 0f, 0.76f);
+        [SerializeField] private Color attack1BulletColor = new Color(1f, 0.25f, 0.12f, 1f);
+
         [Header("Attack 2 - Earth Blast")]
         [SerializeField, Min(0f)] private float attack2Damage = 18f;
         [SerializeField, Min(0.1f)] private float attack2Range = 8f;
@@ -185,7 +200,6 @@ namespace SeoulPlay
         [SerializeField, Min(0f)] private float attack3JumpDistance = 3f;
         [SerializeField, Min(0f)] private float attack3ImpactForwardOffset = 1.2f;
         [SerializeField, Min(0f)] private float attack3JumpStartDelay = 0.12f;
-        [SerializeField, Min(0.05f)] private float attack3JumpDuration = 0.55f;
         [SerializeField, Min(0f)] private float attack3JumpArcHeight = 1.2f;
         [SerializeField] private GameObject attack3ImpactVfxPrefab;
         [SerializeField, Min(0.1f)] private float attack3VfxDuration = 2f;
@@ -216,7 +230,9 @@ namespace SeoulPlay
         private bool attack2EarthBlastFired;
         private bool attack3SlamFired;
         private bool attack3ImpactVfxFired;
+        private Coroutine attack1BulletFanRoutine;
         private Coroutine attack3JumpRoutine;
+        private Material attack1BulletMaterial;
 
         public BossState CurrentState => currentState;
         public bool AutoAttackEnabled => autoAttack;
@@ -272,6 +288,15 @@ namespace SeoulPlay
             chaseAcceleration = Mathf.Max(0f, chaseAcceleration);
             rotateSpeed = Mathf.Max(0f, rotateSpeed);
             turnInPlaceMoveSpeed = Mathf.Max(0f, turnInPlaceMoveSpeed);
+            attack1BulletCount = Mathf.Max(1, attack1BulletCount);
+            attack1FanAngle = Mathf.Clamp(attack1FanAngle, 0f, 180f);
+            attack1BulletInterval = Mathf.Max(0f, attack1BulletInterval);
+            attack1BulletDamage = Mathf.Max(0f, attack1BulletDamage);
+            attack1BulletSpeed = Mathf.Max(0.1f, attack1BulletSpeed);
+            attack1BulletLifetime = Mathf.Max(0.1f, attack1BulletLifetime);
+            attack1BulletRadius = Mathf.Max(0.02f, attack1BulletRadius);
+            attack1BulletSpawnHeight = Mathf.Max(0f, attack1BulletSpawnHeight);
+            attack1BulletSpawnForwardOffset = Mathf.Max(0f, attack1BulletSpawnForwardOffset);
             attack2Damage = Mathf.Max(0f, attack2Damage);
             attack2Range = Mathf.Max(0.1f, attack2Range);
             attack2Radius = Mathf.Max(0.05f, attack2Radius);
@@ -288,7 +313,6 @@ namespace SeoulPlay
             attack3JumpDistance = Mathf.Max(0f, attack3JumpDistance);
             attack3ImpactForwardOffset = Mathf.Max(0f, attack3ImpactForwardOffset);
             attack3JumpStartDelay = Mathf.Max(0f, attack3JumpStartDelay);
-            attack3JumpDuration = Mathf.Max(0.05f, attack3JumpDuration);
             attack3JumpArcHeight = Mathf.Max(0f, attack3JumpArcHeight);
             attack3VfxDuration = Mathf.Max(0.1f, attack3VfxDuration);
             attack3VfxDestroyDelay = Mathf.Max(0f, attack3VfxDestroyDelay);
@@ -496,6 +520,7 @@ namespace SeoulPlay
                 StopCoroutine(attack3JumpRoutine);
                 attack3JumpRoutine = null;
             }
+            StopAttack1BulletFan();
             DestroyAttack1RockClone();
             HideHeldRock();
         }
@@ -514,6 +539,7 @@ namespace SeoulPlay
             attack2EarthBlastFired = true;
             attack3SlamFired = true;
             attack3ImpactVfxFired = true;
+            StopAttack1BulletFan();
             DestroyAttack1RockClone();
             HideHeldRock();
             currentChaseSpeed = 0f;
@@ -560,7 +586,6 @@ namespace SeoulPlay
 
             BeginAttack(BossAttackType.Attack3JumpSlam);
             ChangeState(BossState.Attack);
-            attackLockedUntil = Time.time + attackLockDuration;
             attack2EarthBlastFired = true;
             attack3SlamFired = false;
             attack3ImpactVfxFired = false;
@@ -569,53 +594,27 @@ namespace SeoulPlay
             currentChaseSpeed = 0f;
             SetAnimatorMovement(false, 0f);
             PlayAttack3AnimationFromStart();
+            attackLockedUntil = Time.time + GetAttack3LockDuration();
             StartAttack3JumpMove();
 
         }
 
         public void FireAttack1Rock()
         {
+            FireAttack1BulletFan();
+        }
+
+        public void FireAttack1BulletFan()
+        {
             if (!CanAct() || attack1RockFired)
             {
                 return;
             }
 
-            if (attack1RockClone == null)
-            {
-                CreateAttack1RockClone();
-            }
-
-            if (attack1RockClone == null)
-            {
-                return;
-            }
-
             attack1RockFired = true;
-            var projectileObject = attack1RockClone;
-            attack1RockClone = null;
-
-            var spawnPosition = projectileObject.transform.position;
-            var direction = GetProjectileDirection(spawnPosition);
-
-            projectileObject.transform.SetParent(null, true);
-            projectileObject.SetActive(true);
             HideHeldRock();
-            EnsureProjectilePhysics(projectileObject);
-
-            var projectile = projectileObject.GetComponent<SeoulPlayProjectile>();
-            if (projectile == null)
-            {
-                projectile = projectileObject.AddComponent<SeoulPlayProjectile>();
-            }
-
-            projectile.Launch(direction, projectileSpeed, projectileDamage, projectileLifetime, transform);
-            projectile.ConfigureMotion(projectileGravity, projectileSpin);
-            projectile.ConfigureVisualOffset(
-                projectileVisualSideOffset,
-                projectileVisualDownOffset,
-                transform.right,
-                projectileVisualOffsetDelay,
-                projectileVisualOffsetDuration);
+            StopAttack1BulletFan();
+            attack1BulletFanRoutine = StartCoroutine(PlayAttack1BulletFan(GetLockedAttackDirection()));
         }
 
         public void FinishAttack()
@@ -626,6 +625,10 @@ namespace SeoulPlay
             }
 
             attackLockedUntil = Mathf.Min(attackLockedUntil, Time.time);
+            if (currentAttackType == BossAttackType.Attack1RockThrow)
+            {
+                StopAttack1BulletFan();
+            }
         }
 
         public void Attack01_End()
@@ -833,7 +836,7 @@ namespace SeoulPlay
 
         public void ShowHeldRock()
         {
-            CreateAttack1RockClone();
+            HideHeldRock();
         }
 
         public void HideHeldRock()
@@ -846,41 +849,8 @@ namespace SeoulPlay
 
         public void CreateAttack1RockClone()
         {
-            if (!CanAct() || attack1RockFired)
-            {
-                return;
-            }
-
             DestroyAttack1RockClone();
             HideHeldRock();
-
-            var guideTransform = heldRockObject != null ? heldRockObject.transform : projectileSpawnPoint;
-            if (heldRockObject != null)
-            {
-                attack1RockClone = Instantiate(heldRockObject, guideTransform.parent);
-                attack1RockClone.transform.localPosition = guideTransform.localPosition;
-                attack1RockClone.transform.localRotation = guideTransform.localRotation;
-                attack1RockClone.transform.localScale = guideTransform.localScale;
-            }
-            else if (rockProjectilePrefab != null)
-            {
-                var spawnPosition = GetProjectileSpawnPosition(guideTransform);
-                var spawnRotation = guideTransform != null ? guideTransform.rotation : transform.rotation;
-                attack1RockClone = Instantiate(rockProjectilePrefab, spawnPosition, spawnRotation, guideTransform);
-            }
-            else
-            {
-                var spawnPosition = GetProjectileSpawnPosition(guideTransform);
-                var spawnRotation = guideTransform != null ? guideTransform.rotation : transform.rotation;
-                attack1RockClone = CreateDefaultRock(spawnPosition, spawnRotation);
-                if (guideTransform != null)
-                {
-                    attack1RockClone.transform.SetParent(guideTransform, true);
-                }
-            }
-
-            attack1RockClone.name = "Boss Attack 1 Rock Clone";
-            attack1RockClone.SetActive(true);
         }
 
         private void DestroyAttack1RockClone()
@@ -1254,6 +1224,141 @@ namespace SeoulPlay
             return transform.position + forward.normalized * attack3ImpactForwardOffset;
         }
 
+        private IEnumerator PlayAttack1BulletFan(Vector3 forward)
+        {
+            forward.y = 0f;
+            if (forward.sqrMagnitude <= 0.001f)
+            {
+                forward = GetFlatForward();
+            }
+
+            forward.Normalize();
+            var count = Mathf.Max(1, attack1BulletCount);
+            var angleStep = count > 1 ? -attack1FanAngle / (count - 1) : 0f;
+            var startAngle = count > 1 ? attack1FanAngle * 0.5f : 0f;
+
+            for (var i = 0; i < count; i++)
+            {
+                if (!CanAct())
+                {
+                    attack1BulletFanRoutine = null;
+                    yield break;
+                }
+
+                var angle = startAngle + angleStep * i;
+                var direction = Quaternion.AngleAxis(angle, Vector3.up) * forward;
+                var spawnPosition = GetAttack1BulletSpawnPosition(direction);
+                SpawnAttack1Bullet(spawnPosition, direction.normalized);
+
+                if (attack1BulletInterval > 0f && i < count - 1)
+                {
+                    yield return new WaitForSeconds(attack1BulletInterval);
+                }
+            }
+
+            attack1BulletFanRoutine = null;
+        }
+
+        private void StopAttack1BulletFan()
+        {
+            if (attack1BulletFanRoutine == null)
+            {
+                return;
+            }
+
+            StopCoroutine(attack1BulletFanRoutine);
+            attack1BulletFanRoutine = null;
+        }
+
+        private void SpawnAttack1Bullet(Vector3 spawnPosition, Vector3 direction)
+        {
+            if (direction.sqrMagnitude <= 0.001f)
+            {
+                direction = GetFlatForward();
+            }
+
+            direction.Normalize();
+            var spawnRotation = Quaternion.LookRotation(direction, Vector3.up);
+            var projectileObject = attack1BulletPrefab != null
+                ? Instantiate(attack1BulletPrefab, spawnPosition, spawnRotation)
+                : CreateDefaultAttack1Bullet(spawnPosition, spawnRotation);
+
+            projectileObject.name = "Boss Attack 1 Bullet";
+            projectileObject.transform.localScale = Vector3.one * (attack1BulletRadius * 2f);
+            EnsureProjectilePhysics(projectileObject);
+
+            var projectile = projectileObject.GetComponent<SeoulPlayProjectile>();
+            if (projectile == null)
+            {
+                projectile = projectileObject.AddComponent<SeoulPlayProjectile>();
+            }
+
+            projectile.ConfigureMotion(0f);
+            projectile.ConfigureTriggerHits(true);
+            projectile.Launch(direction, attack1BulletSpeed, attack1BulletDamage, attack1BulletLifetime, transform);
+        }
+
+        private Vector3 GetAttack1BulletSpawnPosition(Vector3 direction)
+        {
+            direction.y = 0f;
+            if (direction.sqrMagnitude <= 0.001f)
+            {
+                direction = GetFlatForward();
+            }
+
+            return transform.position
+                + transform.TransformDirection(attack1BulletCenterOffset)
+                + Vector3.up * attack1BulletSpawnHeight
+                + direction.normalized * attack1BulletSpawnForwardOffset;
+        }
+
+        private GameObject CreateDefaultAttack1Bullet(Vector3 position, Quaternion rotation)
+        {
+            var bulletObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            bulletObject.transform.SetPositionAndRotation(position, rotation);
+
+            var collider = bulletObject.GetComponent<SphereCollider>();
+            if (collider != null)
+            {
+                collider.isTrigger = true;
+            }
+
+            var renderer = bulletObject.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.sharedMaterial = GetAttack1BulletMaterial();
+            }
+
+            var rigidbody = bulletObject.AddComponent<Rigidbody>();
+            rigidbody.useGravity = false;
+            rigidbody.isKinematic = true;
+            rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+
+            return bulletObject;
+        }
+
+        private Material GetAttack1BulletMaterial()
+        {
+            if (attack1BulletMaterial != null)
+            {
+                return attack1BulletMaterial;
+            }
+
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                shader = Shader.Find("Standard");
+            }
+
+            attack1BulletMaterial = new Material(shader)
+            {
+                name = "Boss Attack 1 Bullet Material",
+                color = attack1BulletColor
+            };
+
+            return attack1BulletMaterial;
+        }
+
         private void StartAttack3JumpMove()
         {
             if (attack3JumpRoutine != null)
@@ -1336,7 +1441,7 @@ namespace SeoulPlay
                     end = start + offset.normalized * attack3JumpDistance;
                 }
             }
-            var duration = Mathf.Max(0.05f, attack3JumpDuration);
+            var duration = GetAttack3JumpMoveDuration();
             if (attack3JumpStartDelay > 0f)
             {
                 yield return new WaitForSeconds(attack3JumpStartDelay);
@@ -1362,6 +1467,103 @@ namespace SeoulPlay
 
             transform.position = end;
             attack3JumpRoutine = null;
+        }
+
+        private float GetAttack3JumpMoveDuration()
+        {
+            const float minDuration = 0.05f;
+            var impactTime = GetCurrentAttack3EventTime(Attack03HitEventName);
+            if (impactTime > 0f)
+            {
+                return Mathf.Max(minDuration, impactTime - attack3JumpStartDelay);
+            }
+
+            var clipLength = GetCurrentAttack3ClipLength();
+            if (clipLength <= 0f)
+            {
+                return minDuration;
+            }
+
+            return Mathf.Max(minDuration, clipLength - attack3JumpStartDelay);
+        }
+
+        private float GetAttack3LockDuration()
+        {
+            var clipLength = GetCurrentAttack3ClipLength();
+            return clipLength > 0f ? Mathf.Max(attackLockDuration, clipLength) : attackLockDuration;
+        }
+
+        private float GetCurrentAttack3ClipLength()
+        {
+            var clip = GetCurrentAttack3Clip();
+            return clip != null ? clip.length : 0f;
+        }
+
+        private float GetCurrentAttack3EventTime(string eventName)
+        {
+            var clip = GetCurrentAttack3Clip();
+            if (clip == null)
+            {
+                return 0f;
+            }
+
+            var events = clip.events;
+            for (var i = 0; i < events.Length; i++)
+            {
+                if (events[i].functionName == eventName)
+                {
+                    return events[i].time;
+                }
+            }
+
+            return 0f;
+        }
+
+        private AnimationClip GetCurrentAttack3Clip()
+        {
+            if (animator == null || animator.runtimeAnimatorController == null)
+            {
+                return null;
+            }
+
+            var currentClip = GetFirstClip(animator.GetCurrentAnimatorClipInfo(0));
+            if (currentClip != null)
+            {
+                return currentClip;
+            }
+
+            if (animator.IsInTransition(0))
+            {
+                var nextClip = GetFirstClip(animator.GetNextAnimatorClipInfo(0));
+                if (nextClip != null)
+                {
+                    return nextClip;
+                }
+            }
+
+            foreach (var clip in animator.runtimeAnimatorController.animationClips)
+            {
+                if (clip != null && (clip.name == "root_Boss_Attack_JumpSlam" || clip.name == "Attack_03"))
+                {
+                    return clip;
+                }
+            }
+
+            return null;
+        }
+
+        private static AnimationClip GetFirstClip(AnimatorClipInfo[] clipInfos)
+        {
+            for (var i = 0; i < clipInfos.Length; i++)
+            {
+                var clip = clipInfos[i].clip;
+                if (clip != null && clip.length > 0f)
+                {
+                    return clip;
+                }
+            }
+
+            return null;
         }
 
         private void FireAttack2EarthBlastLine(
