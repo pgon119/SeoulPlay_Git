@@ -2532,11 +2532,9 @@ MonoBehaviour:
   attack3DamageRadius: 6
   attack3JumpDistance: 6
   attack3ImpactForwardOffset: 1.2
-  attack3JumpStartDelay: 0.12
-  attack3JumpArcHeight: 4
-  attack3EndPositionOffset: {x: 0, y: 0, z: 0}
-  attack3PreserveImpactReferencePosition: 1
-  attack3PositionReference: {fileID: 0}
+  attack3JumpStartDelay: 0
+  attack3JumpMoveStartNormalized: 0.2
+  attack3JumpMoveEndNormalized: 0.65
   attack3ImpactVfxPrefab: {fileID: 7907260701345176331, guid: 5d3878ca1f07ec746acd7ad85b97ed7e,
     type: 3}
   attack3VfxDuration: 2
@@ -3084,12 +3082,7 @@ PrefabInstance:
     - target: {fileID: 5397252070933486704, guid: 79c0a711f46614a46887428a2a5d3685,
         type: 3}
       propertyPath: attack3JumpDistance
-      value: 8
-      objectReference: {fileID: 0}
-    - target: {fileID: 5397252070933486704, guid: 79c0a711f46614a46887428a2a5d3685,
-        type: 3}
-      propertyPath: attack3JumpArcHeight
-      value: 0
+      value: 15
       objectReference: {fileID: 0}
     - target: {fileID: 5397252070933486704, guid: 79c0a711f46614a46887428a2a5d3685,
         type: 3}
@@ -3098,13 +3091,13 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5397252070933486704, guid: 79c0a711f46614a46887428a2a5d3685,
         type: 3}
-      propertyPath: attack3EndPositionOffset.z
-      value: 0
+      propertyPath: attack1BulletCenterOffset.x
+      value: -4
       objectReference: {fileID: 0}
     - target: {fileID: 5397252070933486704, guid: 79c0a711f46614a46887428a2a5d3685,
         type: 3}
-      propertyPath: attack1BulletCenterOffset.x
-      value: -4
+      propertyPath: attack3JumpMoveStartNormalized
+      value: 0.4
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

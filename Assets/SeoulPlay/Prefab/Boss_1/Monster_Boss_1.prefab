@@ -240,8 +240,9 @@ MonoBehaviour:
   attack3DamageRadius: 6
   attack3JumpDistance: 6
   attack3ImpactForwardOffset: 1.2
-  attack3JumpStartDelay: 0.12
-  attack3JumpArcHeight: 4
+  attack3JumpStartDelay: 0
+  attack3JumpMoveStartNormalized: 0.2
+  attack3JumpMoveEndNormalized: 0.65
   attack3ImpactVfxPrefab: {fileID: 7907260701345176331, guid: 5d3878ca1f07ec746acd7ad85b97ed7e,
     type: 3}
   attack3VfxDuration: 2

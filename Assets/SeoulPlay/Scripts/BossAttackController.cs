@@ -16,7 +16,6 @@ namespace SeoulPlay
         private static readonly int Attack02Hash = Animator.StringToHash("Attack02");
         private static readonly int Attack03Hash = Animator.StringToHash("Attack03");
         private static readonly int Attack03StateHash = Animator.StringToHash("Attack_03");
-        private const string Attack03HitEventName = "Attack03_Hit";
         private static readonly int IsMovingHash = Animator.StringToHash("IsMoving");
         private static readonly int MoveSpeedHash = Animator.StringToHash("MoveSpeed");
 
@@ -197,13 +196,11 @@ namespace SeoulPlay
         [Header("Attack 3 - Jump Slam")]
         [SerializeField, Min(0f)] private float attack3Damage = 24f;
         [SerializeField, Min(0.05f)] private float attack3DamageRadius = 3f;
-        [SerializeField, Min(0f)] private float attack3JumpDistance = 3f;
+        [SerializeField, Min(0f)] private float attack3JumpDistance = 6f;
         [SerializeField, Min(0f)] private float attack3ImpactForwardOffset = 1.2f;
-        [SerializeField, Min(0f)] private float attack3JumpStartDelay = 0.12f;
-        [SerializeField, Min(0f)] private float attack3JumpArcHeight = 1.2f;
-        [SerializeField] private Vector3 attack3EndPositionOffset;
-        [SerializeField] private bool attack3PreserveImpactReferencePosition = true;
-        [SerializeField] private Transform attack3PositionReference;
+        [SerializeField, Min(0f)] private float attack3JumpStartDelay = 0f;
+        [SerializeField, Range(0f, 1f)] private float attack3JumpMoveStartNormalized = 0.2f;
+        [SerializeField, Range(0f, 1f)] private float attack3JumpMoveEndNormalized = 0.65f;
         [SerializeField] private GameObject attack3ImpactVfxPrefab;
         [SerializeField, Min(0.1f)] private float attack3VfxDuration = 2f;
         [SerializeField, Min(0f)] private float attack3VfxDestroyDelay = 3f;
@@ -233,9 +230,6 @@ namespace SeoulPlay
         private bool attack2EarthBlastFired;
         private bool attack3SlamFired;
         private bool attack3ImpactVfxFired;
-        private bool attack3EndPositionOffsetApplied;
-        private bool hasAttack3ImpactReferencePosition;
-        private Vector3 attack3ImpactReferencePosition;
         private Coroutine attack1BulletFanRoutine;
         private Coroutine attack3JumpRoutine;
         private Material attack1BulletMaterial;
@@ -271,11 +265,6 @@ namespace SeoulPlay
             {
                 var holdPoint = FindChildTransform("Attack_1_RockHoldPoint");
                 projectileSpawnPoint = holdPoint != null ? holdPoint : heldRockObject != null ? heldRockObject.transform : null;
-            }
-
-            if (attack3PositionReference == null)
-            {
-                attack3PositionReference = FindChildTransform("root");
             }
 
             HideHeldRock();
@@ -324,7 +313,8 @@ namespace SeoulPlay
             attack3JumpDistance = Mathf.Max(0f, attack3JumpDistance);
             attack3ImpactForwardOffset = Mathf.Max(0f, attack3ImpactForwardOffset);
             attack3JumpStartDelay = Mathf.Max(0f, attack3JumpStartDelay);
-            attack3JumpArcHeight = Mathf.Max(0f, attack3JumpArcHeight);
+            attack3JumpMoveStartNormalized = Mathf.Clamp01(attack3JumpMoveStartNormalized);
+            attack3JumpMoveEndNormalized = Mathf.Clamp(attack3JumpMoveEndNormalized, attack3JumpMoveStartNormalized, 1f);
             attack3VfxDuration = Mathf.Max(0.1f, attack3VfxDuration);
             attack3VfxDestroyDelay = Mathf.Max(0f, attack3VfxDestroyDelay);
         }
@@ -488,11 +478,6 @@ namespace SeoulPlay
 
             if (Time.time >= attackLockedUntil)
             {
-                if (currentAttackType == BossAttackType.Attack3JumpSlam)
-                {
-                    ApplyAttack3EndPositionOffset();
-                }
-
                 cooldownEndsAt = Time.time + globalAttackCooldown;
                 ChangeState(BossState.Cooldown);
             }
@@ -531,11 +516,7 @@ namespace SeoulPlay
             currentAttackType = BossAttackType.None;
             hasLockedAttackTarget = false;
             SetAnimatorMovement(false, 0f);
-            if (attack3JumpRoutine != null)
-            {
-                StopCoroutine(attack3JumpRoutine);
-                attack3JumpRoutine = null;
-            }
+            StopAttack3JumpMove();
             StopAttack1BulletFan();
             DestroyAttack1RockClone();
             HideHeldRock();
@@ -605,8 +586,6 @@ namespace SeoulPlay
             attack2EarthBlastFired = true;
             attack3SlamFired = false;
             attack3ImpactVfxFired = false;
-            attack3EndPositionOffsetApplied = false;
-            hasAttack3ImpactReferencePosition = false;
             DestroyAttack1RockClone();
             HideHeldRock();
             currentChaseSpeed = 0f;
@@ -647,10 +626,6 @@ namespace SeoulPlay
             {
                 StopAttack1BulletFan();
             }
-            else if (currentAttackType == BossAttackType.Attack3JumpSlam)
-            {
-                ApplyAttack3EndPositionOffset();
-            }
         }
 
         public void Attack01_End()
@@ -687,7 +662,6 @@ namespace SeoulPlay
         {
             FireAttack3ImpactVfx();
             DamageAttack3Impact();
-            CaptureAttack3ImpactReferencePosition();
         }
 
         public void FireAttack3ImpactVfx()
@@ -840,12 +814,7 @@ namespace SeoulPlay
             attack3ImpactVfxFired = true;
             currentChaseSpeed = 0f;
 
-            if (attack3JumpRoutine != null)
-            {
-                StopCoroutine(attack3JumpRoutine);
-                attack3JumpRoutine = null;
-            }
-
+            StopAttack3JumpMove();
             DestroyAttack1RockClone();
             HideHeldRock();
             ResetAttackTriggers();
@@ -1293,60 +1262,15 @@ namespace SeoulPlay
             attack1BulletFanRoutine = null;
         }
 
-        private void ApplyAttack3EndPositionOffset()
+        private void StopAttack3JumpMove()
         {
-            if (attack3EndPositionOffsetApplied)
+            if (attack3JumpRoutine == null)
             {
                 return;
             }
 
-            attack3EndPositionOffsetApplied = true;
-            var offset = transform.TransformDirection(attack3EndPositionOffset);
-            if (attack3PreserveImpactReferencePosition && hasAttack3ImpactReferencePosition)
-            {
-                var positionReference = GetAttack3PositionReference();
-                if (positionReference != null)
-                {
-                    var referenceDelta = attack3ImpactReferencePosition - positionReference.position;
-                    referenceDelta.y = 0f;
-                    offset += referenceDelta;
-                }
-            }
-
-            if (offset.sqrMagnitude <= 0.000001f)
-            {
-                return;
-            }
-
-            transform.position += offset;
-        }
-
-        private void CaptureAttack3ImpactReferencePosition()
-        {
-            if (!attack3PreserveImpactReferencePosition)
-            {
-                return;
-            }
-
-            var positionReference = GetAttack3PositionReference();
-            if (positionReference == null)
-            {
-                return;
-            }
-
-            attack3ImpactReferencePosition = positionReference.position;
-            hasAttack3ImpactReferencePosition = true;
-        }
-
-        private Transform GetAttack3PositionReference()
-        {
-            if (attack3PositionReference != null)
-            {
-                return attack3PositionReference;
-            }
-
-            attack3PositionReference = FindChildTransform("root");
-            return attack3PositionReference;
+            StopCoroutine(attack3JumpRoutine);
+            attack3JumpRoutine = null;
         }
 
         private void SpawnAttack1Bullet(Vector3 spawnPosition, Vector3 direction)
@@ -1440,11 +1364,7 @@ namespace SeoulPlay
 
         private void StartAttack3JumpMove()
         {
-            if (attack3JumpRoutine != null)
-            {
-                StopCoroutine(attack3JumpRoutine);
-                attack3JumpRoutine = null;
-            }
+            StopAttack3JumpMove();
 
             if (attack3JumpDistance <= 0f)
             {
@@ -1511,21 +1431,29 @@ namespace SeoulPlay
             var start = transform.position;
             var end = hasLockedAttackTarget ? lockedTargetPosition : start + forward * attack3JumpDistance;
             end.y = start.y;
-            if (attack3JumpDistance > 0f)
+
+            var offset = end - start;
+            offset.y = 0f;
+            if (offset.magnitude > attack3JumpDistance)
             {
-                var offset = end - start;
-                offset.y = 0f;
-                if (offset.magnitude > attack3JumpDistance)
-                {
-                    end = start + offset.normalized * attack3JumpDistance;
-                }
-            }
-            var duration = GetAttack3JumpMoveDuration();
-            if (attack3JumpStartDelay > 0f)
-            {
-                yield return new WaitForSeconds(attack3JumpStartDelay);
+                end = start + offset.normalized * attack3JumpDistance;
             }
 
+            var moveDelay = GetAttack3JumpMoveDelay();
+            var waitElapsed = 0f;
+            while (waitElapsed < moveDelay)
+            {
+                if (!CanAct())
+                {
+                    attack3JumpRoutine = null;
+                    yield break;
+                }
+
+                waitElapsed += Time.deltaTime;
+                yield return null;
+            }
+
+            var duration = GetAttack3JumpMoveDuration();
             var elapsed = 0f;
 
             while (elapsed < duration)
@@ -1539,7 +1467,6 @@ namespace SeoulPlay
                 elapsed += Time.deltaTime;
                 var t = Mathf.Clamp01(elapsed / duration);
                 var position = Vector3.Lerp(start, end, Mathf.SmoothStep(0f, 1f, t));
-                position.y += Mathf.Sin(t * Mathf.PI) * attack3JumpArcHeight;
                 transform.position = position;
                 yield return null;
             }
@@ -1551,19 +1478,20 @@ namespace SeoulPlay
         private float GetAttack3JumpMoveDuration()
         {
             const float minDuration = 0.05f;
-            var impactTime = GetCurrentAttack3EventTime(Attack03HitEventName);
-            if (impactTime > 0f)
-            {
-                return Mathf.Max(minDuration, impactTime - attack3JumpStartDelay);
-            }
-
             var clipLength = GetCurrentAttack3ClipLength();
             if (clipLength <= 0f)
             {
-                return minDuration;
+                return 0.35f;
             }
 
-            return Mathf.Max(minDuration, clipLength - attack3JumpStartDelay);
+            var moveWindow = Mathf.Max(0.01f, attack3JumpMoveEndNormalized - attack3JumpMoveStartNormalized);
+            return Mathf.Max(minDuration, clipLength * moveWindow);
+        }
+
+        private float GetAttack3JumpMoveDelay()
+        {
+            var clipLength = GetCurrentAttack3ClipLength();
+            return attack3JumpStartDelay + (clipLength > 0f ? clipLength * attack3JumpMoveStartNormalized : 0f);
         }
 
         private float GetAttack3LockDuration()
@@ -1576,26 +1504,6 @@ namespace SeoulPlay
         {
             var clip = GetCurrentAttack3Clip();
             return clip != null ? clip.length : 0f;
-        }
-
-        private float GetCurrentAttack3EventTime(string eventName)
-        {
-            var clip = GetCurrentAttack3Clip();
-            if (clip == null)
-            {
-                return 0f;
-            }
-
-            var events = clip.events;
-            for (var i = 0; i < events.Length; i++)
-            {
-                if (events[i].functionName == eventName)
-                {
-                    return events[i].time;
-                }
-            }
-
-            return 0f;
         }
 
         private AnimationClip GetCurrentAttack3Clip()
