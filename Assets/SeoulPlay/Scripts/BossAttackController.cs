@@ -188,6 +188,7 @@ namespace SeoulPlay
         [SerializeField, Min(0f)] private float attack2PillarRadiusStep = 0.25f;
         [SerializeField, Min(0.1f)] private float attack2VfxDuration = 2f;
         [SerializeField, Min(0f)] private float attack2VfxDestroyDelay = 3f;
+        [SerializeField] private float attack2SupportVfxZOffset = -3f;
         [SerializeField] private LayerMask attack2HitMask = ~0;
         [SerializeField] private bool attack2HitTriggers = true;
         [SerializeField] private bool attack2ParticlesOnly = true;
@@ -646,7 +647,7 @@ namespace SeoulPlay
             var source = GetAttack2Source(forward);
             var damagedTargets = new HashSet<SeoulPlayDamageable>();
 
-            SpawnAttack2SupportVfx(source, forward);
+            SpawnAttack2SupportVfx();
             FireAttack2EarthBlastLine(source, forward, damagedTargets);
 
             if (attack2SideAngle <= 0f)
@@ -1568,15 +1569,18 @@ namespace SeoulPlay
             StartCoroutine(PlayAttack2PillarLine(source, direction, damagedTargets));
         }
 
-        private void SpawnAttack2SupportVfx(Vector3 source, Vector3 direction)
+        private void SpawnAttack2SupportVfx()
         {
             if (attack2VfxPrefab == null)
             {
                 return;
             }
 
-            var rotation = direction.sqrMagnitude > 0.001f ? Quaternion.LookRotation(direction, Vector3.up) : transform.rotation;
-            var vfxObject = Instantiate(attack2VfxPrefab, source, rotation);
+            var vfxObject = Instantiate(attack2VfxPrefab);
+            var vfxPosition = vfxObject.transform.position;
+            vfxPosition.z = transform.position.z + attack2SupportVfxZOffset;
+            vfxObject.transform.position = vfxPosition;
+
             var embeddedPillarUnit = FindChildTransform(vfxObject.transform, EarthBlastPillarUnitName);
             if (embeddedPillarUnit != null)
             {
@@ -1611,15 +1615,26 @@ namespace SeoulPlay
 
         private void SpawnAttack3ImpactVfx(Vector3 position, Vector3 direction)
         {
-            var prefab = attack3ImpactVfxPrefab != null ? attack3ImpactVfxPrefab : attack2PillarVfxPrefab != null ? attack2PillarVfxPrefab : attack2VfxPrefab;
+            var useAttack3ImpactPrefab = attack3ImpactVfxPrefab != null;
+            var prefab = useAttack3ImpactPrefab ? attack3ImpactVfxPrefab : attack2PillarVfxPrefab != null ? attack2PillarVfxPrefab : attack2VfxPrefab;
             if (prefab == null)
             {
                 return;
             }
 
-            var rotation = direction.sqrMagnitude > 0.001f ? Quaternion.LookRotation(direction, Vector3.up) : transform.rotation;
-            var vfxObject = Instantiate(prefab, position, rotation);
-            vfxObject.transform.localScale = Vector3.one * attack3DamageRadius;
+            GameObject vfxObject;
+            if (useAttack3ImpactPrefab)
+            {
+                vfxObject = Instantiate(prefab);
+                vfxObject.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+                vfxObject.transform.localScale = Vector3.one;
+            }
+            else
+            {
+                var rotation = direction.sqrMagnitude > 0.001f ? Quaternion.LookRotation(direction, Vector3.up) : transform.rotation;
+                vfxObject = Instantiate(prefab, position, rotation);
+                vfxObject.transform.localScale = Vector3.one * attack3DamageRadius;
+            }
 
             if (!attack3ParticlesOnly)
             {
