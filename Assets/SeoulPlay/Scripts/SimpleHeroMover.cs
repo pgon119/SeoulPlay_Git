@@ -985,6 +985,8 @@ namespace SeoulPlay
             damageCameraShakeElapsed = 0f;
             damageCameraShakeTimer = damageCameraShakeActiveDuration;
             damageCameraShakeNoise.ReSeed();
+            damageCameraShakeNoise.m_AmplitudeGain = damageCameraShakeActiveAmplitude;
+            damageCameraShakeNoise.m_FrequencyGain = damageCameraShakeFrequency;
         }
 
         private void UpdateDamageCameraShakeNoise()
@@ -1223,7 +1225,11 @@ namespace SeoulPlay
             }
 
             damageCameraShakeNoise.m_NoiseProfile = damageCameraShakeNoiseProfile;
-            damageCameraShakeNoise.m_AmplitudeGain = 0f;
+            if (damageCameraShakeTimer <= 0f)
+            {
+                damageCameraShakeNoise.m_AmplitudeGain = 0f;
+            }
+
             damageCameraShakeNoise.m_FrequencyGain = damageCameraShakeFrequency;
         }
 

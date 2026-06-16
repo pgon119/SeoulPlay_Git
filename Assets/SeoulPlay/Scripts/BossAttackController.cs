@@ -177,15 +177,17 @@ namespace SeoulPlay
 
         [Header("Attack 2 - Earth Blast")]
         [SerializeField, Min(0f)] private float attack2Damage = 18f;
-        [SerializeField, Min(0.1f)] private float attack2Range = 8f;
-        [SerializeField, Min(0.05f)] private float attack2Radius = 1.5f;
+        [SerializeField, FormerlySerializedAs("attack2PillarBaseRadius"), Min(0.05f)] private float attack2StartRadius = 0.7f;
+        [SerializeField, FormerlySerializedAs("attack2Range"), Min(0.1f)] private float attack2BoxLength = 8f;
+        [SerializeField, FormerlySerializedAs("attack2Radius"), Min(0.05f)] private float attack2BoxWidth = 1.5f;
+        [SerializeField, Min(0.05f)] private float attack2BoxHeight = 2.5f;
         [SerializeField, Min(0f)] private float attack2ForwardOffset = 1.2f;
         [SerializeField, Range(0f, 90f)] private float attack2SideAngle = 35f;
         [SerializeField, Min(1)] private int attack2PillarCount = 6;
         [SerializeField, Min(0.05f)] private float attack2PillarSpacing = 1.2f;
         [SerializeField, Min(0f)] private float attack2PillarDelayStep = 0.07f;
-        [SerializeField, Min(0.05f)] private float attack2PillarBaseRadius = 0.7f;
-        [SerializeField, Min(0f)] private float attack2PillarRadiusStep = 0.25f;
+        [SerializeField, Min(0.05f)] private float attack2PillarVfxBaseScale = 0.7f;
+        [SerializeField, Min(0f)] private float attack2PillarVfxScaleStep = 0.25f;
         [SerializeField, Min(0.1f)] private float attack2VfxDuration = 2f;
         [SerializeField, Min(0f)] private float attack2VfxDestroyDelay = 3f;
         [SerializeField] private float attack2SupportVfxZOffset = -3f;
@@ -193,6 +195,11 @@ namespace SeoulPlay
         [SerializeField] private bool attack2HitTriggers = true;
         [SerializeField] private bool attack2ParticlesOnly = true;
         [SerializeField] private bool useAttack2InAutoAttack = true;
+        [SerializeField, Min(0f)] private float attack2KnockbackDistance = 1.6f;
+        [SerializeField, Min(0f)] private float attack2KnockbackDuration = 0.24f;
+        [SerializeField] private bool showAttack2DamageArea;
+        [SerializeField, Min(0.05f)] private float attack2DamageAreaDuration = 0.45f;
+        [SerializeField] private Color attack2DamageAreaColor = new Color(1f, 0.2f, 0.05f, 0.24f);
 
         [Header("Attack 3 - Jump Slam")]
         [SerializeField, Min(0f)] private float attack3Damage = 24f;
@@ -234,6 +241,7 @@ namespace SeoulPlay
         private Coroutine attack1BulletFanRoutine;
         private Coroutine attack3JumpRoutine;
         private Material attack1BulletMaterial;
+        private Material attack2DamageAreaMaterial;
 
         public BossState CurrentState => currentState;
         public bool AutoAttackEnabled => autoAttack;
@@ -272,6 +280,38 @@ namespace SeoulPlay
             SetAnimatorMovement(false, 0f);
         }
 
+        private void OnDestroy()
+        {
+            if (attack1BulletMaterial != null)
+            {
+                DestroyRuntimeMaterial(attack1BulletMaterial);
+                attack1BulletMaterial = null;
+            }
+
+            if (attack2DamageAreaMaterial != null)
+            {
+                DestroyRuntimeMaterial(attack2DamageAreaMaterial);
+                attack2DamageAreaMaterial = null;
+            }
+        }
+
+        private static void DestroyRuntimeMaterial(Material material)
+        {
+            if (material == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(material);
+            }
+            else
+            {
+                DestroyImmediate(material);
+            }
+        }
+
         private void OnValidate()
         {
             detectionRange = Mathf.Max(0f, detectionRange);
@@ -299,16 +339,21 @@ namespace SeoulPlay
             attack1BulletSpawnHeight = Mathf.Max(0f, attack1BulletSpawnHeight);
             attack1BulletSpawnForwardOffset = Mathf.Max(0f, attack1BulletSpawnForwardOffset);
             attack2Damage = Mathf.Max(0f, attack2Damage);
-            attack2Range = Mathf.Max(0.1f, attack2Range);
-            attack2Radius = Mathf.Max(0.05f, attack2Radius);
+            attack2StartRadius = Mathf.Max(0.05f, attack2StartRadius);
+            attack2BoxLength = Mathf.Max(0.1f, attack2BoxLength);
+            attack2BoxWidth = Mathf.Max(0.05f, attack2BoxWidth);
+            attack2BoxHeight = Mathf.Max(0.05f, attack2BoxHeight);
             attack2ForwardOffset = Mathf.Max(0f, attack2ForwardOffset);
             attack2PillarCount = Mathf.Max(1, attack2PillarCount);
             attack2PillarSpacing = Mathf.Max(0.05f, attack2PillarSpacing);
             attack2PillarDelayStep = Mathf.Max(0f, attack2PillarDelayStep);
-            attack2PillarBaseRadius = Mathf.Max(0.05f, attack2PillarBaseRadius);
-            attack2PillarRadiusStep = Mathf.Max(0f, attack2PillarRadiusStep);
+            attack2PillarVfxBaseScale = Mathf.Max(0.05f, attack2PillarVfxBaseScale);
+            attack2PillarVfxScaleStep = Mathf.Max(0f, attack2PillarVfxScaleStep);
             attack2VfxDuration = Mathf.Max(0.1f, attack2VfxDuration);
             attack2VfxDestroyDelay = Mathf.Max(0f, attack2VfxDestroyDelay);
+            attack2KnockbackDistance = Mathf.Max(0f, attack2KnockbackDistance);
+            attack2KnockbackDuration = Mathf.Max(0f, attack2KnockbackDuration);
+            attack2DamageAreaDuration = Mathf.Max(0.05f, attack2DamageAreaDuration);
             attack3Damage = Mathf.Max(0f, attack3Damage);
             attack3DamageRadius = Mathf.Max(0.05f, attack3DamageRadius);
             attack3JumpDistance = Mathf.Max(0f, attack3JumpDistance);
@@ -648,6 +693,8 @@ namespace SeoulPlay
             var damagedTargets = new HashSet<SeoulPlayDamageable>();
 
             SpawnAttack2SupportVfx();
+            SpawnAttack2StartAreaPreview(source);
+            DamageAttack2StartArea(source, forward, damagedTargets);
             FireAttack2EarthBlastLine(source, forward, damagedTargets);
 
             if (attack2SideAngle <= 0f)
@@ -1566,7 +1613,9 @@ namespace SeoulPlay
             }
 
             direction.Normalize();
-            StartCoroutine(PlayAttack2PillarLine(source, direction, damagedTargets));
+            SpawnAttack2BoxAreaPreview(source, direction);
+            DamageAttack2BoxArea(source, direction, damagedTargets);
+            StartCoroutine(PlayAttack2PillarLine(source, direction));
         }
 
         private void SpawnAttack2SupportVfx()
@@ -1724,8 +1773,7 @@ namespace SeoulPlay
 
         private IEnumerator PlayAttack2PillarLine(
             Vector3 source,
-            Vector3 direction,
-            HashSet<SeoulPlayDamageable> damagedTargets)
+            Vector3 direction)
         {
             for (var index = 0; index < attack2PillarCount; index++)
             {
@@ -1739,10 +1787,9 @@ namespace SeoulPlay
                     yield break;
                 }
 
-                var radius = attack2PillarBaseRadius + attack2PillarRadiusStep * index;
+                var radius = attack2PillarVfxBaseScale + attack2PillarVfxScaleStep * index;
                 var position = source + direction * attack2PillarSpacing * index;
                 SpawnAttack2PillarVfx(position, direction, radius);
-                DamageAttack2Pillar(position, direction, radius, damagedTargets);
             }
         }
 
@@ -1794,10 +1841,132 @@ namespace SeoulPlay
             Destroy(vfxObject, attack2VfxDuration + attack2VfxDestroyDelay);
         }
 
-        private void DamageAttack2Pillar(
+        private void SpawnAttack2StartAreaPreview(Vector3 position)
+        {
+            if (!showAttack2DamageArea || attack2StartRadius <= 0f)
+            {
+                return;
+            }
+
+            var previewObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            previewObject.name = "Attack 2 Start Damage Area Preview";
+            previewObject.transform.position = position;
+            previewObject.transform.localScale = Vector3.one * attack2StartRadius * 2f;
+
+            DisableAndDestroyPreviewCollider(previewObject);
+            ConfigureAttack2DamageAreaRenderer(previewObject);
+            Destroy(previewObject, attack2DamageAreaDuration);
+        }
+
+        private void SpawnAttack2BoxAreaPreview(Vector3 source, Vector3 direction)
+        {
+            if (!showAttack2DamageArea || attack2BoxLength <= 0f || attack2BoxWidth <= 0f || attack2BoxHeight <= 0f)
+            {
+                return;
+            }
+
+            var boxCenter = GetAttack2BoxCenter(source, direction);
+            var rotation = GetAttack2BoxRotation(direction);
+            var previewObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            previewObject.name = "Attack 2 Box Damage Area Preview";
+            previewObject.transform.SetPositionAndRotation(boxCenter, rotation);
+            previewObject.transform.localScale = new Vector3(attack2BoxWidth, attack2BoxHeight, attack2BoxLength);
+
+            DisableAndDestroyPreviewCollider(previewObject);
+            ConfigureAttack2DamageAreaRenderer(previewObject);
+            Destroy(previewObject, attack2DamageAreaDuration);
+        }
+
+        private void DisableAndDestroyPreviewCollider(GameObject previewObject)
+        {
+            var collider = previewObject != null ? previewObject.GetComponent<Collider>() : null;
+            if (collider == null)
+            {
+                return;
+            }
+
+            collider.enabled = false;
+            Destroy(collider);
+        }
+
+        private void ConfigureAttack2DamageAreaRenderer(GameObject previewObject)
+        {
+            var renderer = previewObject != null ? previewObject.GetComponent<MeshRenderer>() : null;
+            if (renderer == null)
+            {
+                return;
+            }
+
+            var material = GetAttack2DamageAreaMaterial();
+            if (material != null)
+            {
+                renderer.sharedMaterial = material;
+            }
+
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+        }
+
+        private Material GetAttack2DamageAreaMaterial()
+        {
+            if (attack2DamageAreaMaterial == null)
+            {
+                var shader = Shader.Find("Universal Render Pipeline/Unlit")
+                    ?? Shader.Find("Unlit/Transparent")
+                    ?? Shader.Find("Sprites/Default")
+                    ?? Shader.Find("Standard")
+                    ?? Shader.Find("Diffuse");
+                if (shader == null)
+                {
+                    return null;
+                }
+
+                attack2DamageAreaMaterial = new Material(shader)
+                {
+                    name = "Attack 2 Damage Area Preview",
+                    hideFlags = HideFlags.HideAndDontSave,
+                    renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent,
+                };
+            }
+
+            if (attack2DamageAreaMaterial.HasProperty("_BaseColor"))
+            {
+                attack2DamageAreaMaterial.SetColor("_BaseColor", attack2DamageAreaColor);
+            }
+
+            if (attack2DamageAreaMaterial.HasProperty("_Color"))
+            {
+                attack2DamageAreaMaterial.SetColor("_Color", attack2DamageAreaColor);
+            }
+
+            if (attack2DamageAreaMaterial.HasProperty("_Surface"))
+            {
+                attack2DamageAreaMaterial.SetFloat("_Surface", 1f);
+            }
+
+            if (attack2DamageAreaMaterial.HasProperty("_SrcBlend"))
+            {
+                attack2DamageAreaMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            }
+
+            if (attack2DamageAreaMaterial.HasProperty("_DstBlend"))
+            {
+                attack2DamageAreaMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            }
+
+            if (attack2DamageAreaMaterial.HasProperty("_ZWrite"))
+            {
+                attack2DamageAreaMaterial.SetInt("_ZWrite", 0);
+            }
+
+            attack2DamageAreaMaterial.EnableKeyword("_ALPHABLEND_ON");
+
+            return attack2DamageAreaMaterial;
+        }
+
+        private void DamageAttack2StartArea(
             Vector3 position,
             Vector3 direction,
-            float radius,
             HashSet<SeoulPlayDamageable> damagedTargets)
         {
             if (attack2Damage <= 0f)
@@ -1806,7 +1975,33 @@ namespace SeoulPlay
             }
 
             var query = attack2HitTriggers ? QueryTriggerInteraction.Collide : QueryTriggerInteraction.Ignore;
-            var hits = Physics.OverlapSphere(position, radius, attack2HitMask, query);
+            var hits = Physics.OverlapSphere(position, attack2StartRadius, attack2HitMask, query);
+            DamageAttack2Hits(hits, position, direction, damagedTargets);
+        }
+
+        private void DamageAttack2BoxArea(
+            Vector3 source,
+            Vector3 direction,
+            HashSet<SeoulPlayDamageable> damagedTargets)
+        {
+            if (attack2Damage <= 0f)
+            {
+                return;
+            }
+
+            var query = attack2HitTriggers ? QueryTriggerInteraction.Collide : QueryTriggerInteraction.Ignore;
+            var boxCenter = GetAttack2BoxCenter(source, direction);
+            var halfExtents = new Vector3(attack2BoxWidth * 0.5f, attack2BoxHeight * 0.5f, attack2BoxLength * 0.5f);
+            var hits = Physics.OverlapBox(boxCenter, halfExtents, GetAttack2BoxRotation(direction), attack2HitMask, query);
+            DamageAttack2Hits(hits, source, direction, damagedTargets);
+        }
+
+        private void DamageAttack2Hits(
+            Collider[] hits,
+            Vector3 source,
+            Vector3 direction,
+            HashSet<SeoulPlayDamageable> damagedTargets)
+        {
             foreach (var hit in hits)
             {
                 var targetDamageable = hit.GetComponentInParent<SeoulPlayDamageable>();
@@ -1816,7 +2011,71 @@ namespace SeoulPlay
                 }
 
                 targetDamageable.TakeDamage(attack2Damage, direction, transform);
+                ApplyAttack2Knockback(targetDamageable, source, direction);
             }
+        }
+
+        private void ApplyAttack2Knockback(SeoulPlayDamageable targetDamageable, Vector3 source, Vector3 attackDirection)
+        {
+            if (targetDamageable == null || attack2KnockbackDistance <= 0f || attack2KnockbackDuration <= 0f)
+            {
+                return;
+            }
+
+            var heroMover = targetDamageable.GetComponentInParent<SimpleHeroMover>();
+            if (heroMover == null)
+            {
+                heroMover = targetDamageable.GetComponentInChildren<SimpleHeroMover>();
+            }
+
+            if (heroMover == null)
+            {
+                return;
+            }
+
+            attackDirection.y = 0f;
+            if (attackDirection.sqrMagnitude <= 0.001f)
+            {
+                attackDirection = GetFlatForward();
+            }
+
+            attackDirection.Normalize();
+            var right = Vector3.Cross(Vector3.up, attackDirection).normalized;
+            if (right.sqrMagnitude <= 0.001f)
+            {
+                return;
+            }
+
+            var offsetFromLine = targetDamageable.transform.position - source;
+            offsetFromLine.y = 0f;
+            var sideSign = Mathf.Sign(Vector3.Dot(offsetFromLine, right));
+            if (Mathf.Approximately(sideSign, 0f))
+            {
+                sideSign = Random.value < 0.5f ? -1f : 1f;
+            }
+
+            heroMover.ApplyKnockback(right * sideSign, attack2KnockbackDistance, attack2KnockbackDuration);
+        }
+
+        private Vector3 GetAttack2BoxCenter(Vector3 source, Vector3 direction)
+        {
+            direction.y = 0f;
+            if (direction.sqrMagnitude <= 0.001f)
+            {
+                direction = GetFlatForward();
+            }
+
+            direction.Normalize();
+            var startOffset = attack2StartRadius + attack2BoxLength * 0.5f;
+            return source + direction * startOffset + Vector3.up * (attack2BoxHeight * 0.5f);
+        }
+
+        private Quaternion GetAttack2BoxRotation(Vector3 direction)
+        {
+            direction.y = 0f;
+            return direction.sqrMagnitude > 0.001f
+                ? Quaternion.LookRotation(direction.normalized, Vector3.up)
+                : transform.rotation;
         }
 
         private float GetHorizontalForwardAngleTo(Vector3 targetDirection)
@@ -1981,16 +2240,19 @@ namespace SeoulPlay
             var previous = source;
             for (var index = 0; index < attack2PillarCount; index++)
             {
-                var radius = attack2PillarBaseRadius + attack2PillarRadiusStep * index;
                 var position = source + direction * attack2PillarSpacing * index;
                 if (index > 0)
                 {
                     Gizmos.DrawLine(previous, position);
                 }
 
-                Gizmos.DrawWireSphere(position, radius);
                 previous = position;
             }
+
+            var previousMatrix = Gizmos.matrix;
+            Gizmos.matrix = Matrix4x4.TRS(GetAttack2BoxCenter(source, direction), GetAttack2BoxRotation(direction), Vector3.one);
+            Gizmos.DrawWireCube(Vector3.zero, new Vector3(attack2BoxWidth, attack2BoxHeight, attack2BoxLength));
+            Gizmos.matrix = previousMatrix;
         }
 
         private void OnDrawGizmosSelected()
@@ -2013,6 +2275,7 @@ namespace SeoulPlay
             var attack2Forward = GetFlatForward();
             var attack2Source = GetAttack2Source(attack2Forward);
             Gizmos.color = new Color(0.55f, 0.35f, 0.1f, 0.75f);
+            Gizmos.DrawWireSphere(attack2Source, attack2StartRadius);
             DrawAttack2GizmoLine(attack2Source, attack2Forward);
             if (attack2SideAngle > 0f)
             {
