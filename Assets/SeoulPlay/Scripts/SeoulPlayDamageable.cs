@@ -35,6 +35,7 @@ namespace SeoulPlay
         public float MaxHealth => maxHealth;
         public float CurrentHealth => currentHealth;
         public bool IsAlive => !dead && currentHealth > 0f;
+        public UnityEvent<float> OnDamaged => onDamaged;
 
         private void Reset()
         {

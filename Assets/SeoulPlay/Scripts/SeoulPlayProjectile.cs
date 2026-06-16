@@ -266,11 +266,20 @@ namespace SeoulPlay
 
         private bool ShouldIgnoreCollider(Collider other)
         {
-            return other == null
-                || (!hitTriggerColliders && other.isTrigger)
+            if (other == null
                 || other.transform.IsChildOf(transform)
                 || (ignoredRoot != null && other.transform.IsChildOf(ignoredRoot))
-                || other.GetComponentInParent<SeoulPlayProjectile>() != null;
+                || other.GetComponentInParent<SeoulPlayProjectile>() != null)
+            {
+                return true;
+            }
+
+            if (other.isTrigger)
+            {
+                return !hitTriggerColliders || ResolveDamageable(other) == null;
+            }
+
+            return false;
         }
 
         private static SeoulPlayDamageable ResolveDamageable(Collider targetCollider)

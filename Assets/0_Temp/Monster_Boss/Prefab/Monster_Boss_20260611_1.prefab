@@ -113,7 +113,7 @@ Animator:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4942377946216767341}
   m_Enabled: 1
-  m_Avatar: {fileID: 9000000, guid: efa94264959a601458672a150cb3bc6e, type: 3}
+  m_Avatar: {fileID: 9000000, guid: cd95669614a591f45af14ad05bde05e4, type: 3}
   m_Controller: {fileID: 9100000, guid: 460e6fe609cc79e4589d53d8d370053b, type: 2}
   m_CullingMode: 0
   m_UpdateMode: 0
@@ -238,9 +238,9 @@ MonoBehaviour:
   rockProjectilePrefab: {fileID: 6630980314950899450, guid: d923193caf86fa14c9064ef3beb6a93c,
     type: 3}
   heldRockObject: {fileID: 0}
-  attack2VfxPrefab: {fileID: 7907260701345176331, guid: 2b437c0d81c55ff41a6e332e346d9d75,
+  attack2VfxPrefab: {fileID: 7625294263639960634, guid: 2f73eb857807abb43b27bbbaeeaec48f,
     type: 3}
-  attack2PillarVfxPrefab: {fileID: 7907260701345176331, guid: 5d3878ca1f07ec746acd7ad85b97ed7e,
+  attack2PillarVfxPrefab: {fileID: 3317331646113907609, guid: 65e047103ca60f84b9ed0b3903a06de4,
     type: 3}
   attack2Origin: {fileID: 0}
   detectionRange: 30
@@ -284,30 +284,32 @@ MonoBehaviour:
   projectileVisualOffsetDuration: 0.35
   spawnForwardOffset: 0.8
   defaultRockScale: 0.45
-  attack1BulletPrefab: {fileID: 100000, guid: 8d4b09c0e5e84ad3a97dbadf6c3b1f02, type: 3}
+  attack1BulletPrefab: {fileID: 2996623235710649923, guid: 285797e953f090848a1e9cf78d58ff04,
+    type: 3}
   attack1BulletCount: 10
   attack1FanAngle: 180
-  attack1BulletInterval: 0.08
+  attack1BulletInterval: 0.03
   attack1BulletDamage: 10
-  attack1BulletSpeed: 8
+  attack1BulletSpeed: 10
   attack1BulletLifetime: 4
-  attack1BulletRadius: 0.22
+  attack1BulletRadius: 0.5
   attack1BulletSpawnHeight: 1.1
   attack1BulletSpawnForwardOffset: 1
-  attack1BulletCenterOffset: {x: 0, y: 0, z: 0.76}
-  attack1BulletColor: {r: 1, g: 0.25, b: 0.12, a: 1}
+  attack1BulletCenterOffset: {x: -2, y: 0, z: 0.76}
+  attack1BulletColor: {r: 1, g: 1, b: 1, a: 1}
   attack2Damage: 18
   attack2Range: 8
   attack2Radius: 1.5
   attack2ForwardOffset: 3.75
   attack2SideAngle: 35
-  attack2PillarCount: 5
+  attack2PillarCount: 2
   attack2PillarSpacing: 2.27
   attack2PillarDelayStep: 0.07
   attack2PillarBaseRadius: 0.7
   attack2PillarRadiusStep: 0.25
   attack2VfxDuration: 2
   attack2VfxDestroyDelay: 3
+  attack2SupportVfxZOffset: -3
   attack2HitMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -316,12 +318,12 @@ MonoBehaviour:
   useAttack2InAutoAttack: 1
   attack3Damage: 24
   attack3DamageRadius: 6
-  attack3JumpDistance: 6
+  attack3JumpDistance: 15
   attack3ImpactForwardOffset: 1.2
   attack3JumpStartDelay: 0
-  attack3JumpMoveStartNormalized: 0.2
+  attack3JumpMoveStartNormalized: 0.4
   attack3JumpMoveEndNormalized: 0.65
-  attack3ImpactVfxPrefab: {fileID: 7907260701345176331, guid: 5d3878ca1f07ec746acd7ad85b97ed7e,
+  attack3ImpactVfxPrefab: {fileID: 4945051592395285672, guid: 3d7b708fc2540404ba38d7136a1d9473,
     type: 3}
   attack3VfxDuration: 2
   attack3VfxDestroyDelay: 3

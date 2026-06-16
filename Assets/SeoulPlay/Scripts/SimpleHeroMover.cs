@@ -63,6 +63,14 @@ namespace SeoulPlay
         [SerializeField] private Vector3 cinemachineFollowOffset = new Vector3(0f, 1.65f, -6f);
         [SerializeField, Min(0f)] private float gameplayCameraDamping = 0.25f;
 
+        [Header("Damage Camera Shake")]
+        [SerializeField] private bool enableDamageCameraShake = true;
+        [SerializeField, Min(0f)] private float damageCameraShakeDuration = 0.18f;
+        [SerializeField, Min(0f)] private float damageCameraShakeAmplitude = 1f;
+        [SerializeField, Min(0f)] private float damageCameraShakeFrequency = 1.15f;
+        [SerializeField, Min(0.01f)] private float damageCameraShakeReferenceDamage = 10f;
+        [SerializeField, Min(1f)] private float damageCameraShakeMaxScale = 1.8f;
+
         [Header("Roll")]
         [SerializeField, Min(0f)] private float rollSpeed = 6.8f;
         [SerializeField, Min(0f)] private float rollDuration = 0.72f;
@@ -119,6 +127,13 @@ namespace SeoulPlay
         private Vector3 cameraVelocity;
         private Vector3 cameraTargetVelocity;
         private Vector3 smoothedCameraTargetPosition;
+        private SeoulPlayDamageable damageable;
+        private float damageCameraShakeTimer;
+        private float damageCameraShakeElapsed;
+        private float damageCameraShakeActiveDuration;
+        private float damageCameraShakeActiveAmplitude;
+        private CinemachineBasicMultiChannelPerlin damageCameraShakeNoise;
+        private NoiseSettings damageCameraShakeNoiseProfile;
         private float movementReferenceYaw;
         private Vector3 rollDirection;
         private Vector3 rollFacingDirection;
@@ -163,6 +178,12 @@ namespace SeoulPlay
                 modelRoot = animator.transform;
             }
 
+            damageable = GetComponentInChildren<SeoulPlayDamageable>();
+            if (damageable != null)
+            {
+                damageable.OnDamaged.AddListener(PlayDamageCameraShake);
+            }
+
             cameraYaw = transform.eulerAngles.y;
             cameraPitch = Mathf.Clamp(cameraPitch, minCameraPitch, maxCameraPitch);
             EnsureCameraTarget();
@@ -172,6 +193,28 @@ namespace SeoulPlay
             ResetModelRootTransform();
             CacheAnimatorParameters();
             CacheAnimatorLayers();
+        }
+
+        private void OnDestroy()
+        {
+            if (damageable != null)
+            {
+                damageable.OnDamaged.RemoveListener(PlayDamageCameraShake);
+            }
+
+            if (damageCameraShakeNoiseProfile != null)
+            {
+                if (Application.isPlaying)
+                {
+                    Destroy(damageCameraShakeNoiseProfile);
+                }
+                else
+                {
+                    DestroyImmediate(damageCameraShakeNoiseProfile);
+                }
+
+                damageCameraShakeNoiseProfile = null;
+            }
         }
 
         private IEnumerator Start()
@@ -271,6 +314,7 @@ namespace SeoulPlay
                 CommitModelRootOffset(false);
             }
 
+            UpdateDamageCameraShakeNoise();
             UpdateCamera();
         }
 
@@ -916,6 +960,56 @@ namespace SeoulPlay
                 : Quaternion.Euler(0f, cameraYaw, 0f);
         }
 
+        private void PlayDamageCameraShake(float damage)
+        {
+            if (!enableDamageCameraShake
+                || damageCameraShakeDuration <= 0f
+                || damageCameraShakeAmplitude <= 0f
+                || damage <= 0f)
+            {
+                return;
+            }
+
+            EnsureDamageCameraShakeNoise();
+            if (damageCameraShakeNoise == null)
+            {
+                return;
+            }
+
+            var referenceDamage = Mathf.Max(0.01f, damageCameraShakeReferenceDamage);
+            var damageScale = Mathf.Sqrt(damage / referenceDamage);
+            damageScale = Mathf.Clamp(damageScale, 0.65f, damageCameraShakeMaxScale);
+
+            damageCameraShakeActiveDuration = damageCameraShakeDuration;
+            damageCameraShakeActiveAmplitude = damageCameraShakeAmplitude * damageScale;
+            damageCameraShakeElapsed = 0f;
+            damageCameraShakeTimer = damageCameraShakeActiveDuration;
+            damageCameraShakeNoise.ReSeed();
+        }
+
+        private void UpdateDamageCameraShakeNoise()
+        {
+            if (damageCameraShakeNoise == null)
+            {
+                return;
+            }
+
+            if (damageCameraShakeTimer <= 0f || damageCameraShakeActiveDuration <= 0f)
+            {
+                damageCameraShakeNoise.m_AmplitudeGain = 0f;
+                return;
+            }
+
+            damageCameraShakeElapsed += Time.deltaTime;
+            var normalizedTime = Mathf.Clamp01(damageCameraShakeElapsed / damageCameraShakeActiveDuration);
+            var damping = 1f - normalizedTime;
+            damping *= damping;
+            damageCameraShakeTimer = Mathf.Max(0f, damageCameraShakeActiveDuration - damageCameraShakeElapsed);
+
+            damageCameraShakeNoise.m_AmplitudeGain = damageCameraShakeActiveAmplitude * damping;
+            damageCameraShakeNoise.m_FrequencyGain = damageCameraShakeFrequency;
+        }
+
         private Vector3 GetSmoothedCameraPosition(Vector3 targetPosition, float activeSmoothTime)
         {
             if (activeSmoothTime <= 0.001f)
@@ -1083,6 +1177,8 @@ namespace SeoulPlay
                 cinemachineCameraHeight = cinemachineFollowOffset.y;
             }
 
+            EnsureDamageCameraShakeNoise(virtualCamera);
+
             var composer = virtualCamera.GetCinemachineComponent<CinemachineComposer>();
             if (composer != null)
             {
@@ -1097,6 +1193,70 @@ namespace SeoulPlay
             }
 
             return virtualCamera;
+        }
+
+        private void EnsureDamageCameraShakeNoise()
+        {
+            if (gameplayVirtualCamera != null)
+            {
+                EnsureDamageCameraShakeNoise(gameplayVirtualCamera);
+            }
+        }
+
+        private void EnsureDamageCameraShakeNoise(CinemachineVirtualCamera virtualCamera)
+        {
+            if (virtualCamera == null)
+            {
+                damageCameraShakeNoise = null;
+                return;
+            }
+
+            damageCameraShakeNoise = virtualCamera.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+            if (damageCameraShakeNoise == null)
+            {
+                damageCameraShakeNoise = virtualCamera.AddCinemachineComponent<CinemachineBasicMultiChannelPerlin>();
+            }
+
+            if (damageCameraShakeNoiseProfile == null)
+            {
+                damageCameraShakeNoiseProfile = CreateDamageCameraShakeNoiseProfile();
+            }
+
+            damageCameraShakeNoise.m_NoiseProfile = damageCameraShakeNoiseProfile;
+            damageCameraShakeNoise.m_AmplitudeGain = 0f;
+            damageCameraShakeNoise.m_FrequencyGain = damageCameraShakeFrequency;
+        }
+
+        private static NoiseSettings CreateDamageCameraShakeNoiseProfile()
+        {
+            var profile = ScriptableObject.CreateInstance<NoiseSettings>();
+            profile.name = "Runtime Damage Camera Shake";
+            profile.hideFlags = HideFlags.HideAndDontSave;
+            profile.PositionNoise = new[]
+            {
+                new NoiseSettings.TransformNoiseParams
+                {
+                    X = new NoiseSettings.NoiseParams { Frequency = 9f, Amplitude = 0.045f },
+                    Y = new NoiseSettings.NoiseParams { Frequency = 11f, Amplitude = 0.03f },
+                    Z = new NoiseSettings.NoiseParams { Frequency = 8f, Amplitude = 0.02f },
+                },
+                new NoiseSettings.TransformNoiseParams
+                {
+                    X = new NoiseSettings.NoiseParams { Frequency = 19f, Amplitude = 0.018f },
+                    Y = new NoiseSettings.NoiseParams { Frequency = 23f, Amplitude = 0.012f },
+                    Z = new NoiseSettings.NoiseParams { Frequency = 17f, Amplitude = 0.01f },
+                },
+            };
+            profile.OrientationNoise = new[]
+            {
+                new NoiseSettings.TransformNoiseParams
+                {
+                    X = new NoiseSettings.NoiseParams { Frequency = 10f, Amplitude = 0.35f },
+                    Y = new NoiseSettings.NoiseParams { Frequency = 13f, Amplitude = 0.28f },
+                    Z = new NoiseSettings.NoiseParams { Frequency = 12f, Amplitude = 0.45f },
+                },
+            };
+            return profile;
         }
 
         private GameObject GetOrCreateSceneCameraObject(string cameraName)
