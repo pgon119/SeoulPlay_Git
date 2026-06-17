@@ -135,35 +135,40 @@ PrefabInstance:
       propertyPath: m_Name
       value: Mood
       objectReference: {fileID: 0}
+    - target: {fileID: 936664113755034120, guid: cc4e04150fa79514a8c864ae8665fc1d,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 2889542835136860687, guid: cc4e04150fa79514a8c864ae8665fc1d,
         type: 3}
       propertyPath: m_LocalScale.x
-      value: 23.580462
+      value: 23.609861
       objectReference: {fileID: 0}
     - target: {fileID: 2889542835136860687, guid: cc4e04150fa79514a8c864ae8665fc1d,
         type: 3}
       propertyPath: m_LocalScale.y
-      value: 23.580462
+      value: 23.609861
       objectReference: {fileID: 0}
     - target: {fileID: 2889542835136860687, guid: cc4e04150fa79514a8c864ae8665fc1d,
         type: 3}
       propertyPath: m_LocalScale.z
-      value: 23.580462
+      value: 23.609861
       objectReference: {fileID: 0}
     - target: {fileID: 5046858102400761274, guid: cc4e04150fa79514a8c864ae8665fc1d,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: -20.986042
+      value: -17.242435
       objectReference: {fileID: 0}
     - target: {fileID: 5046858102400761274, guid: cc4e04150fa79514a8c864ae8665fc1d,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 16.010471
+      value: 8.700119
       objectReference: {fileID: 0}
     - target: {fileID: 5046858102400761274, guid: cc4e04150fa79514a8c864ae8665fc1d,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: -6.3128066
+      value: -2.580573
       objectReference: {fileID: 0}
     - target: {fileID: 6307007982509180946, guid: cc4e04150fa79514a8c864ae8665fc1d,
         type: 3}
@@ -2630,31 +2635,37 @@ MonoBehaviour:
   attack1BulletCenterOffset: {x: 0, y: 0, z: 0.76}
   attack1BulletColor: {r: 1, g: 0.25, b: 0.12, a: 1}
   attack2Damage: 18
-  attack2Range: 8
-  attack2Radius: 1.5
+  attack2StartRadius: 0.7
+  attack2BoxLength: 8
+  attack2BoxWidth: 1.5
+  attack2BoxHeight: 2.5
   attack2ForwardOffset: 3.75
   attack2SideAngle: 35
   attack2PillarCount: 5
   attack2PillarSpacing: 2.27
   attack2PillarDelayStep: 0.07
-  attack2PillarBaseRadius: 0.7
-  attack2PillarRadiusStep: 0.25
+  attack2PillarVfxBaseScale: 0.7
+  attack2PillarVfxScaleStep: 0.25
   attack2VfxDuration: 2
   attack2VfxDestroyDelay: 3
-  attack2SupportVfxZOffset: -3
+  attack2SupportVfxZOffset: 0
   attack2HitMask:
     serializedVersion: 2
     m_Bits: 4294967295
   attack2HitTriggers: 1
   attack2ParticlesOnly: 1
   useAttack2InAutoAttack: 1
+  attack2KnockbackDistance: 1.6
+  attack2KnockbackDuration: 0.24
+  showAttack2DamageArea: 0
+  attack2DamageAreaDuration: 0.45
+  attack2DamageAreaColor: {r: 1, g: 0.2, b: 0.05, a: 0.24}
   attack3Damage: 24
   attack3DamageRadius: 6
-  attack3JumpDistance: 6
-  attack3ImpactForwardOffset: 1.2
-  attack3JumpStartDelay: 0
-  attack3JumpMoveStartNormalized: 0.2
-  attack3JumpMoveEndNormalized: 0.65
+  attack3MinRange: 6
+  attack3MaxRange: 12
+  attack3LandingOffset: 0
+  attack3JumpMoveDuration: 0.45
   attack3ImpactVfxPrefab: {fileID: 7907260701345176331, guid: 5d3878ca1f07ec746acd7ad85b97ed7e,
     type: 3}
   attack3VfxDuration: 2
@@ -3178,6 +3189,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Monster_Boss_20260611_1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5397252070933486704, guid: 79c0a711f46614a46887428a2a5d3685,
+        type: 3}
+      propertyPath: attack1BulletCount
+      value: 16
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

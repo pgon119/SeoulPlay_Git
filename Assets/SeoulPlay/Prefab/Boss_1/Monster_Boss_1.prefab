@@ -238,11 +238,10 @@ MonoBehaviour:
   useAttack2InAutoAttack: 1
   attack3Damage: 24
   attack3DamageRadius: 6
-  attack3JumpDistance: 6
-  attack3ImpactForwardOffset: 1.2
-  attack3JumpStartDelay: 0
-  attack3JumpMoveStartNormalized: 0.2
-  attack3JumpMoveEndNormalized: 0.65
+  attack3MinRange: 6
+  attack3MaxRange: 12
+  attack3LandingOffset: 0
+  attack3JumpMoveDuration: 0.45
   attack3ImpactVfxPrefab: {fileID: 7907260701345176331, guid: 5d3878ca1f07ec746acd7ad85b97ed7e,
     type: 3}
   attack3VfxDuration: 2

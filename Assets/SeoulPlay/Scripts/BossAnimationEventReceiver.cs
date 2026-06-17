@@ -125,6 +125,29 @@ namespace SeoulPlay
             }
         }
 
+        public void Attack03_Jump()
+        {
+            if (attackController != null)
+            {
+                attackController.StartAttack3JumpSlamMove();
+            }
+        }
+
+        public void Attack03_JumpStart()
+        {
+            Attack03_Jump();
+        }
+
+        public void JumpSlam_Jump()
+        {
+            Attack03_Jump();
+        }
+
+        public void JumpStart()
+        {
+            Attack03_Jump();
+        }
+
         public void Attack03_Effect()
         {
             if (attackController != null)
@@ -153,6 +176,7 @@ namespace SeoulPlay
 
         public void AttackSignal()
         {
+            Attack03_Jump();
         }
 
         public void Enrage_Start()
