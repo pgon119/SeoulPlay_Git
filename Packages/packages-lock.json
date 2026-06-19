@@ -16,6 +16,14 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.tripo3d.unitybridge": {
+      "version": "file:C:/Users/pgon1/Downloads/Tripo3d_Unity_Bridge-latest/Tripo3d_Unity_Bridge",
+      "depth": 0,
+      "source": "local",
+      "dependencies": {
+        "com.unity.modules.jsonserialize": "1.0.0"
+      }
+    },
     "com.unity.burst": {
       "version": "1.8.21",
       "depth": 1,
