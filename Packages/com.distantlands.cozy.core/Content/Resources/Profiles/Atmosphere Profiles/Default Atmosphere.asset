@@ -1072,7 +1072,7 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
   fogFlareColor:
-    overrideValue: 1
+    overrideValue: 0
     mode: 0
     colorVal: {r: 0.08395338, g: 1, b: 0, a: 1}
     gradientVal:
@@ -1131,7 +1131,7 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
   fogMoonFlareColor:
-    overrideValue: 1
+    overrideValue: 0
     mode: 0
     colorVal: {r: 0.49416864, g: 0, b: 0.46570867, a: 1}
     gradientVal:
@@ -1223,7 +1223,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 0.456
+    floatVal: 0.822
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -1250,7 +1250,7 @@ MonoBehaviour:
       m_RotationOrder: 4
   fogVariationDirection: {x: 6, y: 0, z: 0}
   fogVariationScale:
-    overrideValue: 1
+    overrideValue: 0
     mode: 1
     colorVal: {r: 1, g: 1, b: 1, a: 1}
     gradientVal:
@@ -1283,7 +1283,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 11.4
+    floatVal: 30
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -1309,7 +1309,7 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
   fogVariationAmount:
-    overrideValue: 1
+    overrideValue: 0
     mode: 1
     colorVal: {r: 1, g: 1, b: 1, a: 1}
     gradientVal:
@@ -1342,7 +1342,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 0.526
+    floatVal: 0.466
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -1368,7 +1368,7 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
   fogVariationDistance:
-    overrideValue: 1
+    overrideValue: 0
     mode: 1
     colorVal: {r: 1, g: 1, b: 1, a: 1}
     gradientVal:
@@ -1401,7 +1401,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 83.5
+    floatVal: 154
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -3023,7 +3023,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 1.79
+    floatVal: 0
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -3195,7 +3195,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 9.3
+    floatVal: 0
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -3254,7 +3254,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 4.2
+    floatVal: 0
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -3313,7 +3313,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 22.3
+    floatVal: 0
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -3372,7 +3372,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 1.025
+    floatVal: 2
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -3398,7 +3398,7 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
   fogLightFlareIntensity:
-    overrideValue: 1
+    overrideValue: 0
     mode: 0
     colorVal: {r: 1, g: 1, b: 1, a: 1}
     gradientVal:
@@ -3475,7 +3475,7 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
   fogLightFlareFalloff:
-    overrideValue: 1
+    overrideValue: 0
     mode: 0
     colorVal: {r: 1, g: 1, b: 1, a: 1}
     gradientVal:
@@ -3579,7 +3579,7 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
   fogLightFlareSquish:
-    overrideValue: 1
+    overrideValue: 0
     mode: 0
     colorVal: {r: 1, g: 1, b: 1, a: 1}
     gradientVal:
@@ -4904,7 +4904,7 @@ MonoBehaviour:
     occlusionRadius: 0.5
     allowOffscreen: 1
   skyFogAmount:
-    overrideValue: 1
+    overrideValue: 0
     mode: 1
     colorVal: {r: 1, g: 1, b: 1, a: 1}
     gradientVal:
@@ -4937,7 +4937,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 0.589
+    floatVal: 0.712
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -4963,7 +4963,7 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
   cloudsFogAmount:
-    overrideValue: 1
+    overrideValue: 0
     mode: 1
     colorVal: {r: 1, g: 1, b: 1, a: 1}
     gradientVal:
@@ -4996,7 +4996,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 0.439
+    floatVal: 0.707
     curveVal:
       serializedVersion: 2
       m_Curve:
@@ -5022,7 +5022,7 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
   cloudsFogLightAmount:
-    overrideValue: 1
+    overrideValue: 0
     mode: 1
     colorVal: {r: 1, g: 1, b: 1, a: 1}
     gradientVal:
@@ -5055,7 +5055,7 @@ MonoBehaviour:
       m_ColorSpace: -1
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    floatVal: 0.439
+    floatVal: 0.937
     curveVal:
       serializedVersion: 2
       m_Curve:
