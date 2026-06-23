@@ -812,8 +812,23 @@ PlayerSettings:
   webGLMemoryGeometricGrowthCap: 96
   webGLPowerPreference: 2
   scriptingDefineSymbols:
-    Android: INVECTOR_BASIC;INVECTOR_MELEE;INVECTOR_SHOOTER;COZY_WEATHER;COZY_3_AND_UP;COZY_URP
-    Standalone: INVECTOR_BASIC;INVECTOR_MELEE;INVECTOR_SHOOTER;UNITY_PIPELINE_URP;COZY_WEATHER;COZY_3_AND_UP;COZY_URP
+    Android: INVECTOR_BASIC;INVECTOR_MELEE;INVECTOR_SHOOTER;COZY_WEATHER;COZY_3_AND_UP;COZY_URP;DOTWEEN
+    EmbeddedLinux: DOTWEEN
+    GameCoreScarlett: DOTWEEN
+    GameCoreXboxOne: DOTWEEN
+    LinuxHeadlessSimulation: DOTWEEN
+    Nintendo Switch: DOTWEEN
+    PS4: DOTWEEN
+    PS5: DOTWEEN
+    QNX: DOTWEEN
+    Stadia: DOTWEEN
+    Standalone: INVECTOR_BASIC;INVECTOR_MELEE;INVECTOR_SHOOTER;UNITY_PIPELINE_URP;COZY_WEATHER;COZY_3_AND_UP;COZY_URP;DOTWEEN
+    VisionOS: DOTWEEN
+    WebGL: DOTWEEN
+    Windows Store Apps: DOTWEEN
+    XboxOne: DOTWEEN
+    iPhone: DOTWEEN
+    tvOS: DOTWEEN
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend: {}

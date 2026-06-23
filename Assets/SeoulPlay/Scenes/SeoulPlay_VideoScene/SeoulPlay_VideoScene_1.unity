@@ -319,7 +319,7 @@ MonoBehaviour:
   videoClip: {fileID: 32900000, guid: a55708a46014859489a1de6e5fa0a1e7, type: 3}
   targetCamera: {fileID: 100002}
   audioSource: {fileID: 100004}
-  nextSceneName: SeoulPlay_Loading
+  nextSceneName: SeoulPlay_Title
   preloadNextSceneDuringVideo: 0
   preloadDelayAfterVideoStarts: 3
   allowSkip: 1
@@ -413,7 +413,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 61430b0086307cc4da3ccc8d39ae88da, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  transitionTemplate: {fileID: 5276914992623515724, guid: 616d511151a6c554caddf1c754e4f91d, type: 3}
+  transitionTemplate: {fileID: 5276914992623515724, guid: 616d511151a6c554caddf1c754e4f91d,
+    type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

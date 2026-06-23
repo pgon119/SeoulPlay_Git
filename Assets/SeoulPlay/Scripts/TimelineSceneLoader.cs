@@ -59,11 +59,19 @@ namespace SeoulPlay
             if (previousTime < triggerTime && currentTime >= triggerTime)
             {
                 hasTriggered = true;
-                SceneManager.LoadScene(targetSceneName, LoadSceneMode.Single);
+                LoadTargetScene();
                 return;
             }
 
             previousTime = currentTime;
+        }
+
+        public void LoadTargetScene()
+        {
+            if (!string.IsNullOrWhiteSpace(targetSceneName))
+            {
+                SceneManager.LoadScene(targetSceneName, LoadSceneMode.Single);
+            }
         }
     }
 }
