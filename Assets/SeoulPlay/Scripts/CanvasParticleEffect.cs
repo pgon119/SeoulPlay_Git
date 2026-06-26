@@ -19,6 +19,7 @@ namespace SeoulPlay
         private Canvas canvas;
         private GameObject particleInstance;
         private ParticleSystem[] particleSystems;
+        private bool ownsParticleInstance;
 
         private void Awake()
         {
@@ -72,7 +73,7 @@ namespace SeoulPlay
 
         private void OnDestroy()
         {
-            if (particleInstance != null)
+            if (ownsParticleInstance && particleInstance != null)
             {
                 Destroy(particleInstance);
             }
@@ -111,7 +112,24 @@ namespace SeoulPlay
                 return;
             }
 
+            if (particlePrefab == gameObject)
+            {
+                particleInstance = gameObject;
+                ownsParticleInstance = false;
+                particleSystems = particleInstance.GetComponentsInChildren<ParticleSystem>(true);
+                return;
+            }
+
+            if (particlePrefab.GetComponentInChildren<CanvasParticleEffect>(true) != null)
+            {
+                Debug.LogWarning(
+                    $"CanvasParticleEffect on {name} skipped particle prefab '{particlePrefab.name}' because it contains another CanvasParticleEffect.",
+                    this);
+                return;
+            }
+
             particleInstance = Instantiate(particlePrefab);
+            ownsParticleInstance = true;
             particleInstance.name = $"{particlePrefab.name} UI Particle";
             particleSystems = particleInstance.GetComponentsInChildren<ParticleSystem>(true);
         }

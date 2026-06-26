@@ -251,15 +251,8 @@ namespace SeoulPlay
         {
             damageable = GetComponent<SeoulPlayDamageable>();
 
-            if (animator == null)
-            {
-                animator = GetComponentInChildren<Animator>();
-            }
-
-            if (animator != null && animator.applyRootMotion)
-            {
-                animator.applyRootMotion = false;
-            }
+            ResolveAnimatorReference();
+            ConfigureAnimatorForRuntime();
 
             if (target == null)
             {
@@ -279,6 +272,12 @@ namespace SeoulPlay
 
             HideHeldRock();
             SetAnimatorMovement(false, 0f);
+        }
+
+        private void OnEnable()
+        {
+            ResolveAnimatorReference();
+            ConfigureAnimatorForRuntime();
         }
 
         private void OnDestroy()
@@ -683,6 +682,16 @@ namespace SeoulPlay
             FinishAttack();
         }
 
+        public void Attack01_Hit()
+        {
+            FireAttack1BulletFan();
+        }
+
+        public void Attack01_ThrowRock()
+        {
+            FireAttack1Rock();
+        }
+
         public void FireAttack2EarthBlast()
         {
             if (!CanAct() || attack2EarthBlastFired)
@@ -730,6 +739,11 @@ namespace SeoulPlay
             PerformAttack3Impact();
         }
 
+        public void Attack02_Hit()
+        {
+            FireAttack2EarthBlast();
+        }
+
         public void StartAttack3JumpSlamMove()
         {
             if (!CanAct() || !IsCurrentAttack(BossAttackType.Attack3JumpSlam))
@@ -743,6 +757,34 @@ namespace SeoulPlay
             }
 
             StartAttack3JumpMove();
+        }
+
+        public void Attack03_Jump()
+        {
+            StartAttack3JumpSlamMove();
+        }
+
+        public void Attack03_Hit()
+        {
+            FireAttack3JumpSlam();
+        }
+
+        public void Attack03_Effect()
+        {
+            FireAttack3ImpactVfx();
+        }
+
+        public void Attack03_Damage()
+        {
+            DamageAttack3Impact();
+        }
+
+        public void AttackSignal()
+        {
+        }
+
+        public void Enrage_Start()
+        {
         }
 
         private void PerformAttack3Impact()
@@ -2177,6 +2219,82 @@ namespace SeoulPlay
             {
                 animator.SetFloat(MoveSpeedHash, isMoving ? moveSpeed : 0f);
             }
+        }
+
+        private void ConfigureAnimatorForRuntime()
+        {
+            if (animator == null)
+            {
+                return;
+            }
+
+            animator.enabled = true;
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            animator.updateMode = AnimatorUpdateMode.Normal;
+            animator.applyRootMotion = false;
+
+            if (animator.speed <= 0f)
+            {
+                animator.speed = 1f;
+            }
+
+            foreach (var skinnedMeshRenderer in animator.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                skinnedMeshRenderer.updateWhenOffscreen = true;
+            }
+
+            var eventRelay = animator.GetComponent<BossAnimationEventRelay>();
+            if (eventRelay == null)
+            {
+                eventRelay = animator.gameObject.AddComponent<BossAnimationEventRelay>();
+            }
+
+            eventRelay.Initialize(this);
+        }
+
+        private void ResolveAnimatorReference()
+        {
+            var animators = GetComponentsInChildren<Animator>(true);
+            if (animators == null || animators.Length == 0)
+            {
+                animator = null;
+                return;
+            }
+
+            var preferredAnimator = FindModelAnimator(animators);
+            if (preferredAnimator == null)
+            {
+                preferredAnimator = animator != null ? animator : animators[0];
+            }
+
+            animator = preferredAnimator;
+
+            foreach (var candidate in animators)
+            {
+                if (candidate != null && candidate != animator && candidate.gameObject == gameObject)
+                {
+                    candidate.enabled = false;
+                }
+            }
+        }
+
+        private Animator FindModelAnimator(Animator[] animators)
+        {
+            foreach (var candidate in animators)
+            {
+                if (candidate == null || candidate.gameObject == gameObject)
+                {
+                    continue;
+                }
+
+                if (candidate.runtimeAnimatorController != null &&
+                    candidate.GetComponentInChildren<SkinnedMeshRenderer>(true) != null)
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
         }
 
         private float GetFlatDistanceToTarget()
