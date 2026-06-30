@@ -12,5 +12,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9f4a308dae7ffd048a8b0eb8d5ae4a02, type: 3}
   m_Name: Bird_1
   m_EditorClassIdentifier: 
-  characterPhoto: {fileID: 21300000, guid: 564d0ba08406c374c8f13991c8ea5fc5, type: 3}
+  characterPhoto: {fileID: 21300000, guid: 37a82da60cd0dff428a6007a63b214e3, type: 3}
   characterName: "\uC0AC\uB0E5\uAFBC \uC65C\uAC00\uB9AC"

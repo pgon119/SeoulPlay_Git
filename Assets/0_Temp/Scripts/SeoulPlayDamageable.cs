@@ -271,6 +271,12 @@ namespace SeoulPlay
             invincibleTimer = 0f;
             SetDeathFireBlocked(true);
             SetAnimatorTrigger(deathTrigger);
+            var bossAttackController = GetComponent<BossAttackController>();
+            if (bossAttackController != null)
+            {
+                bossAttackController.NotifyDeath();
+            }
+
             onDeath.Invoke();
 
             if (disableCollidersOnDeath)

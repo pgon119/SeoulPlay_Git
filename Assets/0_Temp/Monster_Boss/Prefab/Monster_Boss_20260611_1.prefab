@@ -389,6 +389,7 @@ MonoBehaviour:
   projectileVisualOffsetDuration: 0.35
   spawnForwardOffset: 0.8
   defaultRockScale: 0.45
+  attack1BuildupSound: {fileID: 8300000, guid: 17bb00da3794e794ebe3bb5f6be5ba1f, type: 3}
   attack1BulletPrefab: {fileID: 2996623235710649923, guid: 285797e953f090848a1e9cf78d58ff04,
     type: 3}
   attack1BulletCount: 10
@@ -428,6 +429,8 @@ MonoBehaviour:
   showAttack2DamageArea: 0
   attack2DamageAreaDuration: 0.45
   attack2DamageAreaColor: {r: 1, g: 0.2, b: 0.05, a: 0.24}
+  slamSound: {fileID: 8300000, guid: 07178245607bc3347995921143698e3c, type: 3}
+  slamSoundDistance: 1
   attack3Damage: 24
   attack3DamageRadius: 6
   attack3MinRange: 6

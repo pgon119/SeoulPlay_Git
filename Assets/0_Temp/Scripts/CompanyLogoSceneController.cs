@@ -19,6 +19,10 @@ namespace SeoulPlay
         [SerializeField, Min(0f)] private float fadeOutDuration = 0.45f;
         [SerializeField] private bool allowSkip = true;
 
+        [Header("Notice")]
+        [SerializeField] private GameObject noticeRoot;
+        [SerializeField, Min(0f)] private float noticeDisplayDuration = 2f;
+
         [Header("Scene Flow")]
         [SerializeField] private string nextSceneName = "SeoulPlay_VideoScene_1";
 
@@ -26,11 +30,13 @@ namespace SeoulPlay
         [SerializeField] private Color backgroundColor = Color.black;
 
         private CanvasGroup canvasGroup;
+        private CanvasGroup noticeCanvasGroup;
         private bool isLoading;
 
         private IEnumerator Start()
         {
             BuildLogoView();
+            PrepareNoticeView();
 
             yield return FadeCanvas(0f, 1f, fadeInDuration);
 
@@ -44,7 +50,9 @@ namespace SeoulPlay
                 yield return new WaitForSeconds(displayDuration);
             }
 
-            LoadNextScene();
+            yield return FadeCanvas(canvasGroup.alpha, 0f, fadeOutDuration);
+            yield return ShowNoticeRoutine();
+            LoadNextSceneImmediately();
         }
 
         private void Update()
@@ -149,10 +157,57 @@ namespace SeoulPlay
             StartCoroutine(LoadNextSceneRoutine());
         }
 
+        private void LoadNextSceneImmediately()
+        {
+            if (isLoading || string.IsNullOrWhiteSpace(nextSceneName))
+            {
+                return;
+            }
+
+            isLoading = true;
+            SceneManager.LoadScene(nextSceneName, LoadSceneMode.Single);
+        }
+
         private IEnumerator LoadNextSceneRoutine()
         {
             yield return FadeCanvas(canvasGroup.alpha, 0f, fadeOutDuration);
             SceneManager.LoadScene(nextSceneName, LoadSceneMode.Single);
+        }
+
+        private void PrepareNoticeView()
+        {
+            if (noticeRoot == null)
+            {
+                return;
+            }
+
+            noticeCanvasGroup = noticeRoot.GetComponent<CanvasGroup>();
+            if (noticeCanvasGroup == null)
+            {
+                noticeCanvasGroup = noticeRoot.AddComponent<CanvasGroup>();
+            }
+
+            noticeCanvasGroup.alpha = 0f;
+            noticeRoot.SetActive(false);
+        }
+
+        private IEnumerator ShowNoticeRoutine()
+        {
+            if (noticeRoot == null || noticeCanvasGroup == null)
+            {
+                yield break;
+            }
+
+            noticeRoot.SetActive(true);
+            yield return FadeNotice(0f, 1f, fadeInDuration);
+
+            if (noticeDisplayDuration > 0f)
+            {
+                yield return new WaitForSeconds(noticeDisplayDuration);
+            }
+
+            yield return FadeNotice(noticeCanvasGroup.alpha, 0f, fadeOutDuration);
+            noticeRoot.SetActive(false);
         }
 
         private IEnumerator FadeCanvas(float from, float to, float duration)
@@ -175,6 +230,28 @@ namespace SeoulPlay
             }
 
             canvasGroup.alpha = to;
+        }
+
+        private IEnumerator FadeNotice(float from, float to, float duration)
+        {
+            if (noticeCanvasGroup == null)
+            {
+                yield break;
+            }
+
+            if (duration <= 0f)
+            {
+                noticeCanvasGroup.alpha = to;
+                yield break;
+            }
+
+            for (var elapsed = 0f; elapsed < duration; elapsed += Time.unscaledDeltaTime)
+            {
+                noticeCanvasGroup.alpha = Mathf.Lerp(from, to, elapsed / duration);
+                yield return null;
+            }
+
+            noticeCanvasGroup.alpha = to;
         }
 
         private static bool AnyInputDown()

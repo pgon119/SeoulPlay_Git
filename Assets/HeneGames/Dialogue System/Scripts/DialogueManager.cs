@@ -59,7 +59,7 @@ namespace HeneGames.DialogueSystem
             if (triggerState == TriggerState.Collision && !dialogueIsOn)
             {
                 //Try to find the "DialogueTrigger" component in the crashing collider
-                if (other.gameObject.TryGetComponent<DialogueTrigger>(out DialogueTrigger _trigger))
+                if (TryGetDialogueTrigger(other, out DialogueTrigger _trigger))
                 {
                     //Store reference and start dialogue
                     dialogueTrigger = _trigger;
@@ -73,7 +73,7 @@ namespace HeneGames.DialogueSystem
             if (triggerState == TriggerState.Collision && !dialogueIsOn)
             {
                 //Try to find the "DialogueTrigger" component in the crashing collider
-                if (collision.gameObject.TryGetComponent<DialogueTrigger>(out DialogueTrigger _trigger))
+                if (TryGetDialogueTrigger(collision, out DialogueTrigger _trigger))
                 {
                     //Store reference and start dialogue
                     dialogueTrigger = _trigger;
@@ -94,7 +94,7 @@ namespace HeneGames.DialogueSystem
             if (triggerState == TriggerState.Input && dialogueTrigger == null)
             {
                 //Try to find the "DialogueTrigger" component in the crashing collider
-                if (other.gameObject.TryGetComponent<DialogueTrigger>(out DialogueTrigger _trigger))
+                if (TryGetDialogueTrigger(other, out DialogueTrigger _trigger))
                 {
                     //Show interaction UI
                     DialogueUI.instance.ShowInteractionUI(true);
@@ -116,7 +116,7 @@ namespace HeneGames.DialogueSystem
             if (triggerState == TriggerState.Input && dialogueTrigger == null)
             {
                 //Try to find the "DialogueTrigger" component in the crashing collider
-                if (collision.gameObject.TryGetComponent<DialogueTrigger>(out DialogueTrigger _trigger))
+                if (TryGetDialogueTrigger(collision, out DialogueTrigger _trigger))
                 {
                     //Show interaction UI
                     DialogueUI.instance.ShowInteractionUI(true);
@@ -130,7 +130,7 @@ namespace HeneGames.DialogueSystem
         private void OnTriggerExit(Collider other)
         {
             //Try to find the "DialogueTrigger" component from the exiting collider
-            if (other.gameObject.TryGetComponent<DialogueTrigger>(out DialogueTrigger _trigger))
+            if (TryGetDialogueTrigger(other, out DialogueTrigger _trigger))
             {
                 //Hide interaction UI
                 DialogueUI.instance.ShowInteractionUI(false);
@@ -143,7 +143,7 @@ namespace HeneGames.DialogueSystem
         private void OnTriggerExit2D(Collider2D collision)
         {
             //Try to find the "DialogueTrigger" component from the exiting collider
-            if (collision.gameObject.TryGetComponent<DialogueTrigger>(out DialogueTrigger _trigger))
+            if (TryGetDialogueTrigger(collision, out DialogueTrigger _trigger))
             {
                 //Hide interaction UI
                 DialogueUI.instance.ShowInteractionUI(false);
@@ -287,6 +287,20 @@ namespace HeneGames.DialogueSystem
 
             dialogueIsOn = true;
             dialogueStartInProgress = false;
+        }
+
+        private static bool TryGetDialogueTrigger(Component collisionComponent, out DialogueTrigger trigger)
+        {
+            trigger = null;
+
+            if (collisionComponent == null)
+                return false;
+
+            if (collisionComponent.TryGetComponent(out trigger))
+                return true;
+
+            trigger = collisionComponent.GetComponentInParent<DialogueTrigger>();
+            return trigger != null;
         }
 
         private void PlaySound(AudioClip _audioClip)

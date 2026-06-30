@@ -281,6 +281,9 @@ MonoBehaviour:
   projectileTrailDuration: 0.18
   projectileTrailWidth: 0.035
   projectileTrailColor: {r: 1, g: 0.78, b: 0.18, a: 1}
+  rifleShotSound: {fileID: 8300000, guid: 3455d739b0e5f094ea2ed34d7f5fb69d, type: 3}
+  rifleShotVolume: 1
+  shotAudioSource: {fileID: 0}
 --- !u!114 &1184357378514135680
 MonoBehaviour:
   m_ObjectHideFlags: 0

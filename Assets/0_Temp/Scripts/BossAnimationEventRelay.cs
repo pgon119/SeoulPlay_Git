@@ -92,6 +92,11 @@ namespace SeoulPlay
             ResolveController()?.Attack03_Hit();
         }
 
+        public void Attack03_hit()
+        {
+            ResolveController()?.Attack03_hit();
+        }
+
         public void Attack03_Effect()
         {
             ResolveController()?.Attack03_Effect();

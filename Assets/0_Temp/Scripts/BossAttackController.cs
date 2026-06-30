@@ -16,6 +16,9 @@ namespace SeoulPlay
         private static readonly int Attack02Hash = Animator.StringToHash("Attack02");
         private static readonly int Attack03Hash = Animator.StringToHash("Attack03");
         private static readonly int Attack03StateHash = Animator.StringToHash("Attack_03");
+        private static readonly int DeathHash = Animator.StringToHash("Death");
+        private static readonly int DieHash = Animator.StringToHash("Die");
+        private static readonly int DeathStateHash = Animator.StringToHash("Death");
         private static readonly int IsMovingHash = Animator.StringToHash("IsMoving");
         private static readonly int MoveSpeedHash = Animator.StringToHash("MoveSpeed");
 
@@ -35,6 +38,13 @@ namespace SeoulPlay
             Attack1RockThrow,
             Attack2EarthBlast,
             Attack3JumpSlam
+        }
+
+        public enum SlamDistancePreset
+        {
+            Close,
+            Normal,
+            Wide
         }
 
         private struct AttackCandidate
@@ -162,6 +172,7 @@ namespace SeoulPlay
         private float defaultRockScale = 0.45f;
 
         [Header("Attack 1 - Bullet Fan")]
+        [SerializeField] private AudioClip attack1BuildupSound;
         [SerializeField] private GameObject attack1BulletPrefab;
         [SerializeField, Min(1)] private int attack1BulletCount = 10;
         [SerializeField, Range(0f, 180f)] private float attack1FanAngle = 45f;
@@ -200,6 +211,8 @@ namespace SeoulPlay
         [SerializeField] private bool showAttack2DamageArea;
         [SerializeField, Min(0.05f)] private float attack2DamageAreaDuration = 0.45f;
         [SerializeField] private Color attack2DamageAreaColor = new Color(1f, 0.2f, 0.05f, 0.24f);
+        [SerializeField] private AudioClip slamSound;
+        [SerializeField] private SlamDistancePreset slamSoundDistance = SlamDistancePreset.Normal;
 
         [Header("Attack 3 - Jump Slam")]
         [SerializeField, Min(0f)] private float attack3Damage = 24f;
@@ -237,15 +250,28 @@ namespace SeoulPlay
         private bool attack2EarthBlastFired;
         private bool attack3SlamFired;
         private bool attack3ImpactVfxFired;
+        private bool attack3SlamSoundPlayed;
         private Vector3 lockedAttack3ImpactPosition;
         private bool hasLockedAttack3ImpactPosition;
         private Coroutine attack1BulletFanRoutine;
         private Coroutine attack3JumpRoutine;
         private Material attack1BulletMaterial;
         private Material attack2DamageAreaMaterial;
+        private bool deathAnimationStarted;
 
         public BossState CurrentState => currentState;
         public bool AutoAttackEnabled => autoAttack;
+
+        public void NotifyDeath()
+        {
+            if (currentState != BossState.Dead)
+            {
+                ChangeState(BossState.Dead);
+                return;
+            }
+
+            BeginDeathState();
+        }
 
         private void Awake()
         {
@@ -583,6 +609,7 @@ namespace SeoulPlay
             attack2EarthBlastFired = true;
             attack3SlamFired = true;
             attack3ImpactVfxFired = true;
+            attack3SlamSoundPlayed = true;
             hasLockedAttack3ImpactPosition = false;
             StopAttack1BulletFan();
             DestroyAttack1RockClone();
@@ -610,6 +637,7 @@ namespace SeoulPlay
             attack2EarthBlastFired = false;
             attack3SlamFired = true;
             attack3ImpactVfxFired = true;
+            attack3SlamSoundPlayed = true;
             hasLockedAttack3ImpactPosition = false;
             DestroyAttack1RockClone();
             HideHeldRock();
@@ -635,6 +663,7 @@ namespace SeoulPlay
             attack2EarthBlastFired = true;
             attack3SlamFired = false;
             attack3ImpactVfxFired = false;
+            attack3SlamSoundPlayed = false;
             hasLockedAttack3ImpactPosition = false;
             DestroyAttack1RockClone();
             HideHeldRock();
@@ -660,6 +689,7 @@ namespace SeoulPlay
             attack1RockFired = true;
             HideHeldRock();
             StopAttack1BulletFan();
+            PlayAttack1BuildupSound();
             attack1BulletFanRoutine = StartCoroutine(PlayAttack1BulletFan(GetLockedAttackDirection()));
         }
 
@@ -692,6 +722,11 @@ namespace SeoulPlay
             FireAttack1Rock();
         }
 
+        private void PlayAttack1BuildupSound()
+        {
+            PlaySpatialBossSound(attack1BuildupSound, "Boss Attack 1 Buildup Sound", transform.position);
+        }
+
         public void FireAttack2EarthBlast()
         {
             if (!CanAct() || attack2EarthBlastFired)
@@ -705,6 +740,7 @@ namespace SeoulPlay
             var source = GetAttack2Source(forward);
             var damagedTargets = new HashSet<SeoulPlayDamageable>();
 
+            PlaySlamSound(source);
             SpawnAttack2SupportVfx();
             SpawnAttack2StartAreaPreview(source);
             DamageAttack2StartArea(source, forward, damagedTargets);
@@ -744,6 +780,54 @@ namespace SeoulPlay
             FireAttack2EarthBlast();
         }
 
+        private void PlaySlamSound(Vector3 source)
+        {
+            PlaySpatialBossSound(slamSound, "Boss Slam Sound", source);
+        }
+
+        private void PlaySpatialBossSound(AudioClip clip, string objectName, Vector3 source)
+        {
+            if (clip == null)
+            {
+                return;
+            }
+
+            GetSlamSoundDistance(out var minDistance, out var maxDistance);
+
+            var soundObject = new GameObject(objectName);
+            soundObject.transform.position = source;
+
+            var audioSource = soundObject.AddComponent<AudioSource>();
+            audioSource.clip = clip;
+            audioSource.volume = 1f;
+            audioSource.spatialBlend = 0.7f;
+            audioSource.rolloffMode = AudioRolloffMode.Logarithmic;
+            audioSource.minDistance = minDistance;
+            audioSource.maxDistance = maxDistance;
+            audioSource.Play();
+
+            Destroy(soundObject, clip.length + 0.1f);
+        }
+
+        private void GetSlamSoundDistance(out float minDistance, out float maxDistance)
+        {
+            switch (slamSoundDistance)
+            {
+                case SlamDistancePreset.Close:
+                    minDistance = 6f;
+                    maxDistance = 25f;
+                    break;
+                case SlamDistancePreset.Wide:
+                    minDistance = 14f;
+                    maxDistance = 65f;
+                    break;
+                default:
+                    minDistance = 10f;
+                    maxDistance = 45f;
+                    break;
+            }
+        }
+
         public void StartAttack3JumpSlamMove()
         {
             if (!CanAct() || !IsCurrentAttack(BossAttackType.Attack3JumpSlam))
@@ -766,7 +850,13 @@ namespace SeoulPlay
 
         public void Attack03_Hit()
         {
+            PlayAttack3SlamSound(true);
             FireAttack3JumpSlam();
+        }
+
+        public void Attack03_hit()
+        {
+            Attack03_Hit();
         }
 
         public void Attack03_Effect()
@@ -789,8 +879,30 @@ namespace SeoulPlay
 
         private void PerformAttack3Impact()
         {
+            PlayAttack3SlamSound(false);
             FireAttack3ImpactVfx();
             DamageAttack3Impact();
+        }
+
+        private void PlayAttack3SlamSound(bool forceFromAnimationEvent)
+        {
+            if (attack3SlamSoundPlayed)
+            {
+                return;
+            }
+
+            if (!forceFromAnimationEvent && (!CanAct() || !IsCurrentAttack(BossAttackType.Attack3JumpSlam)))
+            {
+                return;
+            }
+
+            attack3SlamSoundPlayed = true;
+
+            var forward = GetLockedAttackDirection();
+            var impactPosition = hasLockedAttack3ImpactPosition
+                ? lockedAttack3ImpactPosition
+                : GetAttack3ImpactPosition(forward);
+            PlaySlamSound(impactPosition);
         }
 
         public void FireAttack3ImpactVfx()
@@ -962,6 +1074,7 @@ namespace SeoulPlay
             attack2EarthBlastFired = true;
             attack3SlamFired = true;
             attack3ImpactVfxFired = true;
+            attack3SlamSoundPlayed = true;
             currentChaseSpeed = 0f;
 
             StopAttack3JumpMove();
@@ -1142,6 +1255,71 @@ namespace SeoulPlay
             }
 
             currentState = nextState;
+
+            if (nextState == BossState.Dead)
+            {
+                BeginDeathState();
+            }
+            else
+            {
+                deathAnimationStarted = false;
+            }
+        }
+
+        private void BeginDeathState()
+        {
+            currentChaseSpeed = 0f;
+            currentAttackType = BossAttackType.None;
+            hasLockedAttackTarget = false;
+            hasLockedAttack3ImpactPosition = false;
+            StopAttack3JumpMove();
+            StopAttack1BulletFan();
+            DestroyAttack1RockClone();
+            HideHeldRock();
+            PlayDeathAnimationFromStart();
+        }
+
+        private void PlayDeathAnimationFromStart()
+        {
+            if (deathAnimationStarted || animator == null || animator.runtimeAnimatorController == null)
+            {
+                return;
+            }
+
+            deathAnimationStarted = true;
+            ResetAttackTriggers();
+
+            if (HasAnimatorParameter(DeathHash, AnimatorControllerParameterType.Trigger))
+            {
+                animator.ResetTrigger(DeathHash);
+            }
+
+            if (HasAnimatorParameter(DieHash, AnimatorControllerParameterType.Trigger))
+            {
+                animator.ResetTrigger(DieHash);
+            }
+
+            SetAnimatorMovement(false, 0f);
+
+            if (animator.HasState(0, DeathStateHash))
+            {
+                animator.Play(DeathStateHash, 0, 0f);
+                animator.Update(0f);
+                return;
+            }
+
+            if (HasAnimatorParameter(DeathHash, AnimatorControllerParameterType.Trigger))
+            {
+                animator.SetTrigger(DeathHash);
+                animator.Update(0f);
+                return;
+            }
+
+            if (HasAnimatorParameter(DieHash, AnimatorControllerParameterType.Trigger))
+            {
+                animator.SetTrigger(DieHash);
+                animator.Update(0f);
+            }
         }
 
         private Vector3 GetProjectileSpawnPosition(Transform spawnTransform)

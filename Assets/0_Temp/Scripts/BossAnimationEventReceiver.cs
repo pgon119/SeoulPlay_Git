@@ -121,8 +121,13 @@ namespace SeoulPlay
         {
             if (attackController != null)
             {
-                attackController.FireAttack3JumpSlam();
+                attackController.Attack03_Hit();
             }
+        }
+
+        public void Attack03_hit()
+        {
+            Attack03_Hit();
         }
 
         public void Attack03_Jump()

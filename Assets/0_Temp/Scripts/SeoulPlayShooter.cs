@@ -1,4 +1,6 @@
+using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace SeoulPlay
 {
@@ -46,12 +48,30 @@ namespace SeoulPlay
         [SerializeField, Min(0.01f)] private float projectileTrailDuration = 0.18f;
         [SerializeField, Min(0.001f)] private float projectileTrailWidth = 0.035f;
         [SerializeField] private Color projectileTrailColor = new(1f, 0.78f, 0.18f, 1f);
+        [Header("Shot Audio")]
+        [SerializeField] private AudioClip rifleShotSound;
+        [SerializeField, Range(0f, 1f)] private float rifleShotVolume = 1f;
+        [SerializeField] private AudioSource shotAudioSource;
+        [Header("Ammo")]
+        [SerializeField, Min(1)] private int maxBulletCount = 30;
+        [SerializeField, Min(0f)] private float reloadDuration = 3f;
+        [SerializeField] private bool autoReloadWhenEmpty = true;
+        [SerializeField] private KeyCode reloadKey = KeyCode.R;
+        [SerializeField] private TextMeshProUGUI useBulletText;
+        [SerializeField] private TextMeshProUGUI reloadCountText;
+        [SerializeField] private Image reloadGaugeImage;
+        [SerializeField] private GameObject reloadGaugeRoot;
+        [SerializeField] private Color normalBulletTextColor = Color.white;
+        [SerializeField] private Color lowBulletTextColor = new Color32(0xF8, 0x3E, 0x3C, 0xFF);
+        [SerializeField, Min(0)] private int lowBulletWarningThreshold = 5;
 
         private readonly RaycastHit[] aimHits = new RaycastHit[16];
         private float nextFireTime;
         private float rollInputFireLockoutTimer;
         private float hitFireLockoutTimer;
         private bool deathFireBlocked;
+        private int currentBulletCount;
+        private float reloadTimer;
 
         private readonly struct ShotHitResult
         {
@@ -90,10 +110,28 @@ namespace SeoulPlay
             {
                 ResolveHeroMover();
             }
+
+            currentBulletCount = Mathf.Clamp(currentBulletCount <= 0 ? maxBulletCount : currentBulletCount, 0, maxBulletCount);
+            EnsureShotAudioSource();
+            ResolveAmmoUI();
+            UpdateAmmoUI();
+        }
+
+        private void OnEnable()
+        {
+            if (currentBulletCount <= 0)
+            {
+                currentBulletCount = maxBulletCount;
+            }
+
+            ResolveAmmoUI();
+            EnsureShotAudioSource();
+            UpdateAmmoUI();
         }
 
         private void Update()
         {
+            UpdateReload();
             UpdateRollInputFireLockout();
             hitFireLockoutTimer = Mathf.Max(0f, hitFireLockoutTimer - Time.deltaTime);
 
@@ -104,13 +142,42 @@ namespace SeoulPlay
 
             UpdateAimFacing();
 
+            if (Input.GetKeyDown(reloadKey) && currentBulletCount < maxBulletCount)
+            {
+                BeginReload();
+            }
+
+            if (IsReloading)
+            {
+                return;
+            }
+
             if (!IsFireHeld() || Time.time < nextFireTime)
             {
                 return;
             }
 
+            if (currentBulletCount <= 0)
+            {
+                if (autoReloadWhenEmpty)
+                {
+                    BeginReload();
+                }
+
+                return;
+            }
+
             Fire();
+            currentBulletCount = Mathf.Max(0, currentBulletCount - 1);
+            UpdateAmmoUI();
+
+            if (currentBulletCount <= 0 && autoReloadWhenEmpty)
+            {
+                BeginReload();
+            }
         }
+
+        private bool IsReloading => reloadTimer > 0f;
 
         public void ApplyHitFireLockout(float duration)
         {
@@ -180,6 +247,7 @@ namespace SeoulPlay
             var fireRate = weapon != null ? weapon.FireRate : 8f;
             nextFireTime = Time.time + 1f / Mathf.Max(0.01f, fireRate);
 
+            PlayRifleShotSound();
             weaponHolder?.SnapMountToFirePose();
 
             var muzzle = weapon != null ? weapon.Muzzle : transform;
@@ -220,6 +288,157 @@ namespace SeoulPlay
             }
 
             AddProjectileTrail(projectileObject);
+        }
+
+        private void BeginReload()
+        {
+            if (IsReloading || currentBulletCount >= maxBulletCount)
+            {
+                return;
+            }
+
+            reloadTimer = Mathf.Max(0.01f, reloadDuration);
+            UpdateAmmoUI();
+        }
+
+        private void UpdateReload()
+        {
+            if (!IsReloading)
+            {
+                return;
+            }
+
+            reloadTimer = Mathf.Max(0f, reloadTimer - Time.deltaTime);
+            if (!IsReloading)
+            {
+                currentBulletCount = maxBulletCount;
+            }
+
+            UpdateAmmoUI();
+        }
+
+        private void UpdateAmmoUI()
+        {
+            if (useBulletText != null)
+            {
+                useBulletText.text = currentBulletCount.ToString();
+                useBulletText.color = currentBulletCount <= lowBulletWarningThreshold
+                    ? lowBulletTextColor
+                    : normalBulletTextColor;
+            }
+
+            var reloadProgress = IsReloading
+                ? 1f - Mathf.Clamp01(reloadTimer / Mathf.Max(0.01f, reloadDuration))
+                : 0f;
+
+            if (reloadGaugeRoot != null && reloadGaugeRoot.activeSelf != IsReloading)
+            {
+                reloadGaugeRoot.SetActive(IsReloading);
+            }
+
+            if (reloadGaugeImage != null)
+            {
+                reloadGaugeImage.fillAmount = reloadProgress;
+            }
+
+            if (reloadCountText != null)
+            {
+                reloadCountText.text = Mathf.CeilToInt(Mathf.Clamp(reloadTimer, 0f, reloadDuration)).ToString();
+                if (reloadCountText.gameObject.activeSelf != IsReloading)
+                {
+                    reloadCountText.gameObject.SetActive(IsReloading);
+                }
+            }
+        }
+
+        private void PlayRifleShotSound()
+        {
+            if (rifleShotSound == null || rifleShotVolume <= 0f)
+            {
+                return;
+            }
+
+            var audioSource = EnsureShotAudioSource();
+            if (audioSource == null)
+            {
+                return;
+            }
+
+            audioSource.PlayOneShot(rifleShotSound, rifleShotVolume);
+        }
+
+        private AudioSource EnsureShotAudioSource()
+        {
+            if (shotAudioSource == null)
+            {
+                shotAudioSource = GetComponent<AudioSource>();
+            }
+
+            if (shotAudioSource == null)
+            {
+                shotAudioSource = gameObject.AddComponent<AudioSource>();
+            }
+
+            shotAudioSource.playOnAwake = false;
+            shotAudioSource.loop = false;
+            shotAudioSource.spatialBlend = 0f;
+            shotAudioSource.rolloffMode = AudioRolloffMode.Logarithmic;
+            return shotAudioSource;
+        }
+
+        private void ResolveAmmoUI()
+        {
+            if (useBulletText == null)
+            {
+                var textObject = FindSceneObjectByName("Text (TMP)_UseBullet");
+                if (textObject != null)
+                {
+                    useBulletText = textObject.GetComponent<TextMeshProUGUI>();
+                }
+            }
+
+            if (reloadCountText == null)
+            {
+                var countObject = FindSceneObjectByName("Text (TMP)_Count");
+                if (countObject != null)
+                {
+                    reloadCountText = countObject.GetComponent<TextMeshProUGUI>();
+                }
+            }
+
+            if (reloadGaugeImage == null)
+            {
+                var gaugeObject = FindSceneObjectByName("Image_Guage");
+                if (gaugeObject != null)
+                {
+                    reloadGaugeImage = gaugeObject.GetComponent<Image>();
+                }
+            }
+
+            if (reloadGaugeRoot == null)
+            {
+                reloadGaugeRoot = FindSceneObjectByName("Bullet_Reload");
+            }
+        }
+
+        private static GameObject FindSceneObjectByName(string objectName)
+        {
+            var activeObject = GameObject.Find(objectName);
+            if (activeObject != null)
+            {
+                return activeObject;
+            }
+
+            var allObjects = Resources.FindObjectsOfTypeAll<GameObject>();
+            foreach (var candidate in allObjects)
+            {
+                if (candidate != null && candidate.scene.IsValid() && candidate.name == objectName)
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
         }
 
         private void SnapBodyToAim()
